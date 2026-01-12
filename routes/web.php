@@ -75,3 +75,5 @@ Route::prefix('reports')->group(function () {
  * Ops / debug (choose whether to protect this)
  */
 Route::get('/ops/sprints/{sprint}', [SprintOpsController::class, 'show'])->name('ops.sprints.show');
+
+Route::post('/wallboard/sprints/{sprint}/sync', [WallboardController::class, 'sync'])->name('wallboard.sprint.sync');

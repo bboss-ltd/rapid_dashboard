@@ -60,7 +60,7 @@
 
     <div class="grid">
         <div class="card">
-            <div class="k">Remaining points</div>
+            <div class="k">Burndown (remaining work over time)</div>
             <div class="v">{{ $liveRemaining }}</div>
         </div>
 
@@ -85,7 +85,26 @@
         <div class="chartCard">
             <div class="k">Burndown (Remaining points over time)</div>
             <div style="margin-top: 10px;">
-                <canvas id="burndown"></canvas>
+                <div id="chartWrap" style="position: relative;">
+                    <canvas id="burndown"></canvas>
+
+                    <div id="chartTooltip" style="
+        position:absolute;
+        display:none;
+        pointer-events:none;
+        max-width: 320px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,.12);
+        background: rgba(10,14,24,.92);
+        color: #e8eefc;
+        font-size: 12px;
+        line-height: 1.35;
+        box-shadow: 0 12px 30px rgba(0,0,0,.35);
+        backdrop-filter: blur(6px);
+    "></div>
+                </div>
+
             </div>
             <div class="foot">
                 <div>
@@ -93,38 +112,309 @@
                     <span class="badge">{{ implode(', ', request('types') ? explode(',', request('types')) : ['ad_hoc','end']) }}</span>
                 </div>
                 <div>
-                    Points are based on snapshots (immutable history); reconciliation may add points when drift is detected.
+                    Based on snapshots; historical view stays consistent over time.
                 </div>
+
             </div>
         </div>
 
         <div class="chartCard">
-            <div class="k">Notes</div>
-            <div style="margin-top: 12px; line-height: 1.5; opacity: .9;">
-                <div>• This page auto-refreshes every {{ $refreshSeconds }}s.</div>
-                <div>• “Remaining” is the latest snapshot point.</div>
-                <div>• Close the sprint in Trello to generate the end snapshot.</div>
+{{--            <div class="k">Notes</div>--}}
+{{--            <div style="margin-top: 12px; line-height: 1.5; opacity: .9;">--}}
+{{--                <div>• This page auto-refreshes every {{ $refreshSeconds }}s.</div>--}}
+{{--                <div>• “Remaining” is the latest snapshot point.</div>--}}
+{{--                <div>• Close the sprint in Trello to generate the end snapshot.</div>--}}
+{{--            </div>--}}
+
+{{--            <div style="margin-top: 18px;">--}}
+{{--                <div class="k">Links</div>--}}
+{{--                <div style="margin-top: 10px; display:flex; flex-direction:column; gap:8px;">--}}
+{{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.json">Burndown JSON</a>--}}
+{{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.csv">Burndown CSV</a>--}}
+{{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/summary.json">Summary JSON</a>--}}
+{{--                </div>--}}
+{{--            </div>--}}
+
+            <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Sprint progress</div>
+                        <div class="text-xs text-zinc-600 dark:text-zinc-300">Completed vs remaining</div>
+                    </div>
+
+                    <button id="manualSyncBtn"
+                            class="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                        Manual re-sync
+                    </button>
+                </div>
+
+                <div class="mt-4" style="position: relative;">
+                    <canvas id="progressDonut" style="width: 100%; height: 220px;"></canvas>
+                    <div id="progressLabel" style="
+            position:absolute;
+            inset:0;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            flex-direction:column;
+            pointer-events:none;
+        ">
+                        <div id="progressPct" class="text-4xl font-semibold text-zinc-900 dark:text-zinc-100">—%</div>
+                        <div class="text-xs text-zinc-600 dark:text-zinc-300">complete</div>
+                    </div>
+                </div>
+
+                <div id="syncStatus" class="mt-3 text-xs text-zinc-600 dark:text-zinc-300"></div>
             </div>
 
-            <div style="margin-top: 18px;">
-                <div class="k">Links</div>
-                <div style="margin-top: 10px; display:flex; flex-direction:column; gap:8px;">
-                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.json">Burndown JSON</a>
-                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.csv">Burndown CSV</a>
-                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/summary.json">Summary JSON</a>
-                </div>
-            </div>
         </div>
     </div>
 </div>
 
 <script>
     (function () {
-        const series = @json($series);
+        // ========= Inputs from Laravel =========
+        const snapshotSeries = @json($series ?? []);
+        const sprint = {
+            id: @json($sprint->id),
+            starts_at: @json(optional($sprint->starts_at)?->toIso8601String()),
+            ends_at: @json(optional($sprint->ends_at)?->toIso8601String()),
+            closed_at: @json(optional($sprint->closed_at)?->toIso8601String()),
+        };
 
+        const cfg = @json(config('wallboard.burndown', []));
+        const display = cfg?.display ?? {};
+        const displayMode = display.mode ?? 'percent'; // 'percent' | 'points'
+        const percentBasis = display.percent_basis ?? 'current_scope'; // 'current_scope' | 'start_scope'
+        const showRaw = !!(display.show_raw_numbers ?? false);
+        const pctDecimals = Number(display.percent_decimals ?? 0);
+
+        const workingDays = (cfg?.working_days ?? [1,2,3,4,5]); // ISO 1..7
+        const gridEnabled = !!(cfg?.grid?.enabled ?? true);
+        const yTicks = Number(cfg?.grid?.y_ticks ?? 5);
+        const xWeekLines = !!(cfg?.grid?.x_week_lines ?? true);
+        const tooltipEnabled = !!(cfg?.tooltip?.enabled ?? true);
+        const useDaily = !!(cfg?.daily_series ?? true);
+
+        // ========= DOM =========
         const canvas = document.getElementById('burndown');
+        const chartWrap = document.getElementById('chartWrap');
+        const tooltip = document.getElementById('chartTooltip');
+        const donut = document.getElementById('progressDonut');
+        const pctEl = document.getElementById('progressPct');
+        const syncBtn = document.getElementById('manualSyncBtn');
+        const syncStatus = document.getElementById('syncStatus');
+
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
 
+        // ========= Formatting helpers =========
+        const fmtDate = new Intl.DateTimeFormat('en-GB', { year:'numeric', month:'2-digit', day:'2-digit' });
+        const fmtDateTime = new Intl.DateTimeFormat('en-GB', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+        function toDate(x) {
+            if (!x) return null;
+            const d = new Date(x);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function startOfDay(d) {
+            const x = new Date(d);
+            x.setHours(0,0,0,0);
+            return x;
+        }
+
+        function endOfDay(d) {
+            const x = new Date(d);
+            x.setHours(23,59,59,999);
+            return x;
+        }
+
+        function isoDow(d) {
+            // JS: 0=Sun..6=Sat => ISO: 1=Mon..7=Sun
+            const js = d.getDay();
+            return js === 0 ? 7 : js;
+        }
+
+        function clamp(n, min, max) {
+            return Math.max(min, Math.min(max, n));
+        }
+
+        function safePct(numer, denom) {
+            if (!denom || denom <= 0) return 0;
+            return (numer / denom) * 100;
+        }
+
+        function roundPct(v) {
+            const p = Math.pow(10, pctDecimals);
+            return Math.round(v * p) / p;
+        }
+
+        function dayKey(d) {
+            const x = startOfDay(d);
+            return x.toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+
+        // ========= Normalize snapshots =========
+        const snaps = (snapshotSeries ?? [])
+            .map(s => ({
+                taken_at: toDate(s.taken_at || s.takenAt || s.date || null),
+                type: s.type || s.snapshot_type || 'snapshot',
+                remaining_points: Number(s.remaining_points ?? 0),
+                done_points: Number(s.done_points ?? 0),
+                scope_points: Number(s.scope_points ?? 0),
+                raw: s,
+            }))
+            .filter(s => s.taken_at)
+            .sort((a,b) => a.taken_at - b.taken_at);
+
+        // ========= Build series =========
+        function buildDailySeries() {
+            if (!snaps.length) return [];
+
+            const sprintStart = startOfDay(toDate(sprint.starts_at) ?? snaps[0].taken_at);
+            const sprintEndBase = toDate(sprint.ends_at) ?? snaps[snaps.length - 1].taken_at;
+            const sprintEnd = startOfDay(sprintEndBase);
+
+            const today = startOfDay(new Date());
+            const endDay = (toDate(sprint.closed_at) ? sprintEnd : (today < sprintEnd ? today : sprintEnd));
+
+            const days = [];
+            for (let d = new Date(sprintStart); d <= endDay; d.setDate(d.getDate() + 1)) {
+                days.push(new Date(d));
+            }
+
+            let cursor = 0;
+            let last = null;
+            const daily = [];
+
+            for (const day of days) {
+                const cutoff = endOfDay(day);
+                while (cursor < snaps.length && snaps[cursor].taken_at <= cutoff) {
+                    last = snaps[cursor];
+                    cursor++;
+                }
+
+                if (last) {
+                    daily.push({
+                        date: new Date(day),
+                        remaining_points: last.remaining_points,
+                        done_points: last.done_points,
+                        scope_points: last.scope_points,
+                        last_snapshot_at: last.taken_at,
+                        last_snapshot_type: last.type,
+                    });
+                } else {
+                    daily.push({
+                        date: new Date(day),
+                        remaining_points: 0,
+                        done_points: 0,
+                        scope_points: 0,
+                        last_snapshot_at: null,
+                        last_snapshot_type: null,
+                    });
+                }
+            }
+
+            return daily;
+        }
+
+        function buildSnapshotPointSeries() {
+            return snaps.map(s => ({
+                date: s.taken_at,
+                remaining_points: s.remaining_points,
+                done_points: s.done_points,
+                scope_points: s.scope_points,
+                last_snapshot_at: s.taken_at,
+                last_snapshot_type: s.type,
+            }));
+        }
+
+        function buildIdealSeries(actual) {
+            if (!actual.length) return [];
+
+            const startDate = startOfDay(actual[0].date);
+            const endDate = startOfDay(actual[actual.length - 1].date);
+
+            // start scope = first non-zero, else max seen
+            let startScope = 0;
+            for (const p of actual) {
+                const s = Number(p.scope_points ?? 0);
+                if (s > 0) { startScope = s; break; }
+            }
+            if (startScope <= 0) {
+                startScope = Math.max(...actual.map(p => Number(p.scope_points ?? 0)), 0);
+            }
+            if (startScope <= 0) return [];
+
+            // count working days inclusive
+            let workingCount = 0;
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                if (workingDays.includes(isoDow(d))) workingCount++;
+            }
+            if (workingCount <= 0) workingCount = 1;
+
+            const burnPerWorkDay = startScope / workingCount;
+
+            let remaining = startScope;
+            const ideal = [];
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                const day = new Date(d);
+                ideal.push({
+                    date: new Date(day),
+                    remaining_points: Math.max(0, remaining),
+                    scope_points: startScope,
+                });
+
+                if (workingDays.includes(isoDow(day))) {
+                    remaining -= burnPerWorkDay;
+                } // else plateau
+            }
+
+            return ideal;
+        }
+
+        const actual = useDaily ? buildDailySeries() : buildSnapshotPointSeries();
+        const idealRaw = buildIdealSeries(actual);
+
+        // Align ideal to actual by day-key (fixes "ideal line missing" issues)
+        const idealMap = new Map(idealRaw.map(p => [dayKey(p.date), p]));
+        const ideal = actual.map(p => idealMap.get(dayKey(p.date)) ?? null);
+
+        // choose start scope for percent basis
+        let startScopeForBasis = 0;
+        for (const p of actual) {
+            const s = Number(p.scope_points ?? 0);
+            if (s > 0) { startScopeForBasis = s; break; }
+        }
+        if (startScopeForBasis <= 0) {
+            startScopeForBasis = Math.max(...actual.map(p => Number(p.scope_points ?? 0)), 0);
+        }
+
+        function toDisplayY(point) {
+            if (displayMode === 'points') return Number(point.remaining_points ?? 0);
+
+            const denom =
+                percentBasis === 'start_scope'
+                    ? (startScopeForBasis || 0)
+                    : Number(point.scope_points ?? 0);
+
+            return roundPct(safePct(Number(point.remaining_points ?? 0), denom));
+        }
+
+        function toIdealDisplayY(point) {
+            if (!point) return null;
+            if (displayMode === 'points') return Number(point.remaining_points ?? 0);
+
+            const denom =
+                percentBasis === 'start_scope'
+                    ? (startScopeForBasis || Number(point.scope_points ?? 0))
+                    : Number(point.scope_points ?? startScopeForBasis ?? 0);
+
+            return roundPct(safePct(Number(point.remaining_points ?? 0), denom));
+        }
+
+        // ========= Canvas drawing =========
         function sizeCanvas() {
             const rect = canvas.getBoundingClientRect();
             canvas.width = Math.floor(rect.width * devicePixelRatio);
@@ -132,79 +422,357 @@
             ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
         }
 
+        let pad, w, h, maxY;
+        let pointPixels = []; // for hover
+
+        function xScale(i) {
+            if (actual.length === 1) return pad.l;
+            const span = (w - pad.l - pad.r);
+            return pad.l + (i / (actual.length - 1)) * span;
+        }
+
+        function yScale(v) {
+            const span = (h - pad.t - pad.b);
+            return pad.t + (1 - (v / maxY)) * span;
+        }
+
+        function drawGrid() {
+            if (!gridEnabled) return;
+
+            ctx.save();
+            ctx.globalAlpha = 0.25;
+            ctx.strokeStyle = '#cfe0ff';
+            ctx.lineWidth = 1;
+
+            const ticks = Math.max(2, yTicks);
+            for (let i = 0; i <= ticks; i++) {
+                const y = pad.t + (i / ticks) * (h - pad.t - pad.b);
+                ctx.beginPath();
+                ctx.moveTo(pad.l, y);
+                ctx.lineTo(w - pad.r, y);
+                ctx.stroke();
+            }
+
+            if (xWeekLines && actual.length > 2) {
+                for (let i = 0; i < actual.length; i++) {
+                    const d = startOfDay(actual[i].date);
+                    if (isoDow(d) === 1) { // Monday
+                        const x = xScale(i);
+                        ctx.beginPath();
+                        ctx.moveTo(x, pad.t);
+                        ctx.lineTo(x, h - pad.b);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            ctx.restore();
+        }
+
         function draw() {
             sizeCanvas();
-
-            const w = canvas.getBoundingClientRect().width;
-            const h = canvas.getBoundingClientRect().height;
+            w = canvas.getBoundingClientRect().width;
+            h = canvas.getBoundingClientRect().height;
 
             ctx.clearRect(0, 0, w, h);
 
-            if (!series || series.length < 1) {
+            if (!actual.length) {
+                ctx.fillStyle = '#e8eefc';
+                ctx.font = '14px system-ui';
                 ctx.fillText('No snapshot data yet.', 16, 24);
                 return;
             }
 
-            const padding = { l: 42, r: 16, t: 16, b: 28 };
+            pad = { l: 50, r: 16, t: 16, b: 32 };
 
-            const xs = series.map((_, i) => i);
-            const ys = series.map(p => Number(p.remaining_points || 0));
-            const maxY = Math.max(...ys, 1);
-            const minY = 0;
+            const actualYs = actual.map(p => toDisplayY(p));
+            const idealYs = ideal.map(p => (p ? toIdealDisplayY(p) : null)).filter(v => v !== null);
 
-            // axes
-            ctx.globalAlpha = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(padding.l, padding.t);
-            ctx.lineTo(padding.l, h - padding.b);
-            ctx.lineTo(w - padding.r, h - padding.b);
+            const rawMax = Math.max(...actualYs, ...(idealYs.length ? idealYs : [0]), 1);
+            maxY = (displayMode === 'percent') ? 100 : Math.ceil(rawMax * 1.1);
+
+            drawGrid();
+
+            // Axes
+            ctx.save();
+            ctx.globalAlpha = 0.55;
             ctx.strokeStyle = '#cfe0ff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(pad.l, pad.t);
+            ctx.lineTo(pad.l, h - pad.b);
+            ctx.lineTo(w - pad.r, h - pad.b);
             ctx.stroke();
-            ctx.globalAlpha = 1;
+            ctx.restore();
 
-            // y labels (0 and max)
+            // Y labels
             ctx.fillStyle = '#e8eefc';
             ctx.font = '12px system-ui';
-            ctx.fillText(String(maxY), 8, padding.t + 12);
-            ctx.fillText('0', 16, h - padding.b + 4);
+            ctx.globalAlpha = 0.85;
 
-            function xScale(i) {
-                if (series.length === 1) return padding.l;
-                const span = (w - padding.l - padding.r);
-                return padding.l + (i / (series.length - 1)) * span;
+            if (displayMode === 'percent') {
+                ctx.fillText('100%', 8, pad.t + 12);
+                ctx.fillText('0%', 16, h - pad.b + 4);
+            } else {
+                ctx.fillText(String(maxY), 8, pad.t + 12);
+                ctx.fillText('0', 16, h - pad.b + 4);
+            }
+            ctx.globalAlpha = 1;
+
+            // Ideal line (dashed)
+            const hasAnyIdeal = ideal.some(p => p !== null);
+            if (hasAnyIdeal) {
+                ctx.save();
+                ctx.strokeStyle = '#a9c5ff';
+                ctx.globalAlpha = 0.55;
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 6]);
+                ctx.beginPath();
+
+                let started = false;
+                ideal.forEach((p, i) => {
+                    if (!p) return;
+                    const x = xScale(i);
+                    const y = yScale(toIdealDisplayY(p));
+                    if (!started) {
+                        ctx.moveTo(x, y);
+                        started = true;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+
+                ctx.stroke();
+                ctx.restore();
             }
 
-            function yScale(v) {
-                const span = (h - padding.t - padding.b);
-                return padding.t + (1 - ((v - minY) / (maxY - minY))) * span;
-            }
-
-            // line
+            // Actual line
+            ctx.save();
+            ctx.strokeStyle = '#7fb2ff';
+            ctx.lineWidth = 3;
             ctx.beginPath();
-            series.forEach((p, i) => {
+            actual.forEach((p, i) => {
                 const x = xScale(i);
-                const y = yScale(Number(p.remaining_points || 0));
+                const y = yScale(toDisplayY(p));
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             });
-            ctx.strokeStyle = '#7fb2ff';
-            ctx.lineWidth = 3;
             ctx.stroke();
+            ctx.restore();
 
-            // points
+            // Points
+            pointPixels = [];
             ctx.fillStyle = '#e8eefc';
-            series.forEach((p, i) => {
+            actual.forEach((p, i) => {
                 const x = xScale(i);
-                const y = yScale(Number(p.remaining_points || 0));
+                const y = yScale(toDisplayY(p));
+                pointPixels.push({ x, y, idx: i });
+
                 ctx.beginPath();
                 ctx.arc(x, y, 4, 0, Math.PI * 2);
                 ctx.fill();
             });
         }
 
+        // ========= Tooltip =========
+        function showTooltipForIndex(i, clientX, clientY) {
+            if (!tooltipEnabled || !tooltip) return;
+
+            const p = actual[i];
+            const idealP = ideal[i] ?? null;
+
+            const dateStr = fmtDate.format(p.date);
+            const snapStr = p.last_snapshot_at ? fmtDateTime.format(p.last_snapshot_at) : '—';
+            const typeStr = p.last_snapshot_type ?? '—';
+
+            const denomForPoint = (displayMode === 'percent')
+                ? (percentBasis === 'start_scope'
+                    ? (startScopeForBasis || 0)
+                    : Number(p.scope_points ?? 0))
+                : 0;
+
+            const actualDisp = (displayMode === 'percent')
+                ? `${toDisplayY(p)}%`
+                : `${p.remaining_points}`;
+
+            const idealDisp = idealP
+                ? (displayMode === 'percent'
+                    ? `${toIdealDisplayY(idealP)}%`
+                    : `${Math.round(idealP.remaining_points)}`)
+                : '—';
+
+            const doneDisp = (displayMode === 'percent')
+                ? `${roundPct(safePct(Number(p.done_points ?? 0), denomForPoint))}%`
+                : `${p.done_points}`;
+
+            const scopeDisp = (displayMode === 'percent')
+                ? '100%'
+                : `${p.scope_points}`;
+
+            const rawBlock = showRaw ? `
+            <div style="margin-top:10px; padding-top:10px; border-top: 1px solid rgba(255,255,255,.12); opacity:.95;">
+                <div style="font-weight:700; margin-bottom:6px;">Raw</div>
+                <div style="display:grid; grid-template-columns: 1fr auto; gap: 6px 12px;">
+                    <div>Remaining</div><div style="font-weight:700;">${p.remaining_points}</div>
+                    <div>Ideal remaining</div><div style="font-weight:700;">${idealP ? Math.round(idealP.remaining_points) : '—'}</div>
+                    <div>Done</div><div>${p.done_points}</div>
+                    <div>Scope</div><div>${p.scope_points}</div>
+                </div>
+            </div>
+        ` : '';
+
+            tooltip.innerHTML = `
+            <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${dateStr}</div>
+            <div style="display:grid; grid-template-columns: 1fr auto; gap: 6px 12px;">
+                <div>Remaining</div><div style="font-weight:700;">${actualDisp}</div>
+                <div>Ideal</div><div style="font-weight:700;">${idealDisp}</div>
+                <div>Done</div><div>${doneDisp}</div>
+                <div>Scope</div><div>${scopeDisp}</div>
+                <div>Last snapshot</div><div>${snapStr}</div>
+                <div>Type</div><div>${typeStr}</div>
+            </div>
+            ${rawBlock}
+        `;
+
+            tooltip.style.display = 'block';
+
+            const wrapRect = chartWrap.getBoundingClientRect();
+            const ttRect = tooltip.getBoundingClientRect();
+
+            const x = clamp(clientX - wrapRect.left + 14, 8, wrapRect.width - ttRect.width - 8);
+            const y = clamp(clientY - wrapRect.top + 14, 8, wrapRect.height - ttRect.height - 8);
+
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+        }
+
+        function hideTooltip() {
+            if (tooltip) tooltip.style.display = 'none';
+        }
+
+        function nearestPointIndex(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const x = evt.clientX - rect.left;
+            const y = evt.clientY - rect.top;
+
+            let best = null;
+            let bestDist = Infinity;
+
+            for (const p of pointPixels) {
+                const dx = p.x - x;
+                const dy = p.y - y;
+                const d = Math.sqrt(dx*dx + dy*dy);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = p;
+                }
+            }
+
+            if (!best || bestDist > 18) return null;
+            return best.idx;
+        }
+
         window.addEventListener('resize', draw);
+
+        if (tooltipEnabled) {
+            canvas.addEventListener('mousemove', (evt) => {
+                const idx = nearestPointIndex(evt);
+                if (idx === null) return hideTooltip();
+                showTooltipForIndex(idx, evt.clientX, evt.clientY);
+            });
+            canvas.addEventListener('mouseleave', hideTooltip);
+        }
+
+        // ========= Donut chart =========
+        function drawDonut(done, remaining) {
+            if (!donut) return;
+            const dctx = donut.getContext('2d');
+
+            const rect = donut.getBoundingClientRect();
+            donut.width = Math.floor(rect.width * devicePixelRatio);
+            donut.height = Math.floor(rect.height * devicePixelRatio);
+            dctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+            const w = rect.width;
+            const h = rect.height;
+            const cx = w / 2;
+            const cy = h / 2;
+            const radius = Math.min(w, h) * 0.38;
+            const thickness = Math.max(14, radius * 0.28);
+
+            const total = Math.max(0, done) + Math.max(0, remaining);
+            const pct = total > 0 ? (done / total) * 100 : 0;
+
+            if (pctEl) pctEl.textContent = `${Math.round(pct)}%`;
+
+            dctx.clearRect(0, 0, w, h);
+            dctx.lineWidth = thickness;
+            dctx.lineCap = 'round';
+
+            // background ring
+            dctx.beginPath();
+            dctx.strokeStyle = 'rgba(148,163,184,0.30)';
+            dctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            dctx.stroke();
+
+            // done arc (start at top)
+            const start = -Math.PI / 2;
+            const end = start + (Math.PI * 2) * (total > 0 ? (done / total) : 0);
+
+            dctx.beginPath();
+            dctx.strokeStyle = 'rgba(127,178,255,0.95)';
+            dctx.arc(cx, cy, radius, start, end);
+            dctx.stroke();
+        }
+
+        // use latest point
+        const latest = actual.length ? actual[actual.length - 1] : null;
+        if (latest) {
+            drawDonut(Number(latest.done_points ?? 0), Number(latest.remaining_points ?? 0));
+        } else {
+            drawDonut(0, 0);
+        }
+
+        // ========= Manual re-sync =========
+        if (syncBtn) {
+            syncBtn.addEventListener('click', async () => {
+                try {
+                    syncBtn.disabled = true;
+                    syncBtn.textContent = 'Syncing…';
+                    if (syncStatus) syncStatus.textContent = 'Requesting sync…';
+
+                    const res = await fetch(@json(route('wallboard.sprint.sync', $sprint)), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': @json(csrf_token()),
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({}),
+                    });
+
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
+
+                    if (syncStatus) syncStatus.textContent = json?.message || 'Sync complete.';
+                    syncBtn.textContent = 'Manual re-sync';
+
+                    // refresh so charts update
+                    setTimeout(() => location.reload(), 700);
+                } catch (e) {
+                    if (syncStatus) syncStatus.textContent = `Sync failed: ${e.message}`;
+                    syncBtn.textContent = 'Manual re-sync';
+                } finally {
+                    syncBtn.disabled = false;
+                }
+            });
+        }
+
+        // ========= Initial draw =========
         draw();
     })();
 </script>
+
+
 </body>
 </html>

@@ -6,6 +6,7 @@ use App\Domains\Reporting\Queries\BurndownSeriesQuery;
 use App\Domains\Reporting\Queries\SprintSummaryQuery;
 use App\Http\Controllers\Controller;
 use App\Models\Sprint;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class WallboardController extends Controller
@@ -56,4 +57,15 @@ class WallboardController extends Controller
             'refreshSeconds' => 60, // tune for TV
         ]);
     }
+
+    public function sync(\App\Models\Sprint $sprint): JsonResponse
+    {
+        // call your existing reconcile + snapshot commands/services
+        // (wire these to your real action names)
+        // app(\App\Domains\Sprints\Actions\ReconcileSprintBoardStateAction::class)->handle($sprint);
+        // app(\App\Domains\Sprints\Actions\TakeSprintSnapshotAction::class)->handle($sprint, 'ad_hoc', 'manual');
+
+        return response()->json(['ok' => true, 'message' => 'Sync triggered.']);
+    }
+
 }
