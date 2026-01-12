@@ -1,5 +1,6 @@
 <?php
 
+use App\Domains\Sprints\Actions\DetectAndCloseSprintAction;
 use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
 use App\Domains\TrelloSync\Actions\PollBoardActionsAction;
 use App\Models\Sprint;
@@ -10,6 +11,7 @@ Schedule::call(function () {
         ->whereNull('closed_at')
         ->each(function ($sprint) {
             app(PollBoardActionsAction::class)->run($sprint);
+            app(DetectAndCloseSprintAction::class)->run($sprint);
         });
 })->everyFiveMinutes();
 
