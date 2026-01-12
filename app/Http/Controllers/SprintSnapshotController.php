@@ -2,25 +2,29 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Sprint;
 use App\Models\SprintSnapshot;
-use Illuminate\Http\Request;
-use Illuminate\View\View;
 
 class SprintSnapshotController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Sprint $sprint)
     {
-        $sprintSnapshots = SprintSnapshot::all();
+        $snapshots = $sprint->snapshots()
+            ->orderByDesc('taken_at')
+            ->paginate(20);
 
-        return view('sprintSnapshot.index', [
-            'sprintSnapshots' => $sprintSnapshots,
-        ]);
+        return view('sprintSnapshot.index', compact('sprint', 'snapshots'));
     }
 
-    public function show(Request $request, SprintSnapshot $sprintSnapshot): View
+    public function show(Sprint $sprint, SprintSnapshot $snapshot)
     {
-        return view('sprintSnapshot.show', [
-            'sprintSnapshot' => $sprintSnapshot,
-        ]);
+        abort_unless($snapshot->sprint_id === $sprint->id, 404);
+
+        $cards = $snapshot->cards()
+            ->with('card')
+            ->orderByDesc('is_done')
+            ->paginate(50);
+
+        return view('sprintSnapshot.show', compact('sprint', 'snapshot', 'cards'));
     }
 }

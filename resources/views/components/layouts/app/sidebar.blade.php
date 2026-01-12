@@ -15,8 +15,20 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
+
+                    <flux:sidebar.item icon="layout-grid" :href="route('sprints.index')" :current="request()->routeIs('sprints.*')" wire:navigate>
+                        {{ __('Sprints') }}
+                    </flux:sidebar.item>
+
+                    <flux:sidebar.item icon="chart-bar" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
+                        {{ __('Reports') }}
+                    </flux:sidebar.item>
+
+
                 </flux:sidebar.group>
             </flux:sidebar.nav>
+
+
 
             <flux:spacer />
 
