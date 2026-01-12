@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'trello' => [
+        'base_url' => env('TRELLO_BASE_URL', 'https://api.trello.com/1'),
+        'key' => env('TRELLO_KEY'),
+        'token' => env('TRELLO_TOKEN'),
+    ],
+
 ];
