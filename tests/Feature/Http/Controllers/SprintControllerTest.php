@@ -31,16 +31,6 @@ final class SprintControllerTest extends TestCase
 
 
     #[Test]
-    public function create_displays_view(): void
-    {
-        $response = $this->get(route('sprints.create'));
-
-        $response->assertOk();
-        $response->assertViewIs('sprint.create');
-    }
-
-
-    #[Test]
     public function store_uses_form_request_validation(): void
     {
         $this->assertActionUsesFormRequest(
@@ -54,17 +44,20 @@ final class SprintControllerTest extends TestCase
     public function store_saves_and_redirects(): void
     {
         $name = fake()->name();
+        $trello_board_id = fake()->word();
         $starts_at = Carbon::parse(fake()->dateTime());
         $ends_at = Carbon::parse(fake()->dateTime());
 
         $response = $this->post(route('sprints.store'), [
             'name' => $name,
+            'trello_board_id' => $trello_board_id,
             'starts_at' => $starts_at->toDateTimeString(),
             'ends_at' => $ends_at->toDateTimeString(),
         ]);
 
         $sprints = Sprint::query()
             ->where('name', $name)
+            ->where('trello_board_id', $trello_board_id)
             ->where('starts_at', $starts_at)
             ->where('ends_at', $ends_at)
             ->get();
@@ -90,19 +83,6 @@ final class SprintControllerTest extends TestCase
 
 
     #[Test]
-    public function edit_displays_view(): void
-    {
-        $sprint = Sprint::factory()->create();
-
-        $response = $this->get(route('sprints.edit', $sprint));
-
-        $response->assertOk();
-        $response->assertViewIs('sprint.edit');
-        $response->assertViewHas('sprint', $sprint);
-    }
-
-
-    #[Test]
     public function update_uses_form_request_validation(): void
     {
         $this->assertActionUsesFormRequest(
@@ -117,11 +97,13 @@ final class SprintControllerTest extends TestCase
     {
         $sprint = Sprint::factory()->create();
         $name = fake()->name();
+        $trello_board_id = fake()->word();
         $starts_at = Carbon::parse(fake()->dateTime());
         $ends_at = Carbon::parse(fake()->dateTime());
 
         $response = $this->put(route('sprints.update', $sprint), [
             'name' => $name,
+            'trello_board_id' => $trello_board_id,
             'starts_at' => $starts_at->toDateTimeString(),
             'ends_at' => $ends_at->toDateTimeString(),
         ]);
@@ -132,20 +114,8 @@ final class SprintControllerTest extends TestCase
         $response->assertSessionHas('sprint.id', $sprint->id);
 
         $this->assertEquals($name, $sprint->name);
+        $this->assertEquals($trello_board_id, $sprint->trello_board_id);
         $this->assertEquals($starts_at, $sprint->starts_at);
         $this->assertEquals($ends_at, $sprint->ends_at);
-    }
-
-
-    #[Test]
-    public function destroy_deletes_and_redirects(): void
-    {
-        $sprint = Sprint::factory()->create();
-
-        $response = $this->delete(route('sprints.destroy', $sprint));
-
-        $response->assertRedirect(route('sprints.index'));
-
-        $this->assertModelMissing($sprint);
     }
 }

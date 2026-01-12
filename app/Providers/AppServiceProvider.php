@@ -2,7 +2,8 @@
 
 namespace App\Providers;
 
-use App\Domains\Estimation\EstimateConverter;
+
+use App\Domains\Estimation\EstimatePointsResolver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -12,9 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(EstimateConverter::class, function () {
-            return new EstimateConverter(config('estimation'));
-        });
+        $this->app->singleton(EstimatePointsResolver::class);
+
     }
 
     /**

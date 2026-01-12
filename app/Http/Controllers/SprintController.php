@@ -20,11 +20,6 @@ class SprintController extends Controller
         ]);
     }
 
-    public function create(Request $request): View
-    {
-        return view('sprint.create');
-    }
-
     public function store(SprintStoreRequest $request): RedirectResponse
     {
         $sprint = Sprint::create($request->validated());
@@ -41,25 +36,11 @@ class SprintController extends Controller
         ]);
     }
 
-    public function edit(Request $request, Sprint $sprint): View
-    {
-        return view('sprint.edit', [
-            'sprint' => $sprint,
-        ]);
-    }
-
     public function update(SprintUpdateRequest $request, Sprint $sprint): RedirectResponse
     {
         $sprint->update($request->validated());
 
         $request->session()->flash('sprint.id', $sprint->id);
-
-        return redirect()->route('sprints.index');
-    }
-
-    public function destroy(Request $request, Sprint $sprint): RedirectResponse
-    {
-        $sprint->delete();
 
         return redirect()->route('sprints.index');
     }

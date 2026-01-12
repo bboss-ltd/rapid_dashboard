@@ -17,12 +17,15 @@ class Sprint extends Model
      */
     protected $fillable = [
         'name',
+        'trello_board_id',
         'starts_at',
         'ends_at',
         'closed_at',
-        'trello_board_id',
         'done_list_ids',
-        'notes',
+        'trello_control_card_id',
+        'trello_status_custom_field_id',
+        'trello_closed_option_id',
+        'last_polled_at',
     ];
 
     /**
@@ -38,21 +41,17 @@ class Sprint extends Model
             'ends_at' => 'datetime',
             'closed_at' => 'datetime',
             'done_list_ids' => 'array',
+            'last_polled_at' => 'datetime',
         ];
     }
 
-    public function sprintCloseSnapshots(): HasMany
+    public function snapshots(): HasMany
     {
-        return $this->hasMany(SprintCloseSnapshot::class);
+        return $this->hasMany(SprintSnapshot::class);
     }
 
-    public function dailySprintSnapshots(): HasMany
+    public function isClosed(): bool
     {
-        return $this->hasMany(DailySprintSnapshot::class);
-    }
-
-    public function reportRuns(): HasMany
-    {
-        return $this->hasMany(ReportRun::class);
+        return $this->closed_at !== null;
     }
 }

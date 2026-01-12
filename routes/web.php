@@ -22,3 +22,13 @@ Route::resource('report-runs', App\Http\Controllers\ReportRunController::class)-
 Route::resource('report-schedules', App\Http\Controllers\ReportScheduleController::class);
 
 Route::resource('dashboards', App\Http\Controllers\DashboardController::class)->only('index', 'show');
+
+
+Route::resource('sprints', App\Http\Controllers\SprintController::class)->except('create', 'edit', 'destroy');
+
+Route::resource('sprint-snapshots', App\Http\Controllers\SprintSnapshotController::class)->only('index', 'show');
+
+
+Route::resource('sprints', App\Http\Controllers\SprintController::class)->except('create', 'edit', 'destroy');
+
+Route::resource('sprint-snapshots', App\Http\Controllers\SprintSnapshotController::class)->only('index', 'show');

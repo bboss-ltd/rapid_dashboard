@@ -4,9 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Card extends Model
+class BoardSyncCursor extends Model
 {
     use HasFactory;
 
@@ -16,9 +15,10 @@ class Card extends Model
      * @var array
      */
     protected $fillable = [
-        'trello_card_id',
-        'name',
-        'last_activity_at',
+        'trello_board_id',
+        'last_action_occurred_at',
+        'last_action_id',
+        'last_polled_at',
     ];
 
     /**
@@ -30,12 +30,8 @@ class Card extends Model
     {
         return [
             'id' => 'integer',
-            'last_activity_at' => 'datetime',
+            'last_action_occurred_at' => 'datetime',
+            'last_polled_at' => 'datetime',
         ];
-    }
-
-    public function snapshotRows(): HasMany
-    {
-        return $this->hasMany(SprintSnapshotCard::class);
     }
 }
