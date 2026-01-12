@@ -7,38 +7,61 @@ use App\Services\Trello\TrelloClient;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
-class SyncSprintRegistryAction
+final class SyncSprintRegistryAction
 {
+    /**
+     * Cache of board custom field option text, keyed as:
+     * [customFieldId => [optionId => optionText]]
+     *
+     * @var array<string, array<string, string>>
+     */
+    private array $optionTextByField = [];
+
     public function __construct(
         private readonly TrelloClient $trello,
     ) {}
 
+    /**
+     * Pull sprint “control cards” from a Trello *registry board* and upsert local sprints.
+     *
+     * Expected config (in config/trello_sync.php):
+     * - trello_sync.registry_board_id
+     * - trello_sync.sprint_control.control_field_ids.status
+     * - trello_sync.sprint_control.control_field_ids.starts_at
+     * - trello_sync.sprint_control.control_field_ids.ends_at
+     * - trello_sync.sprint_control.control_field_ids.sprint_board
+     * - trello_sync.sprint_control.control_field_ids.done_list_ids (optional)
+     *
+     * Optional:
+     * - trello_sync.sprint_control.status_option_map (optionId => 'planned'|'active'|'closed')
+     */
     public function handle(): int
     {
-        $boardId = config('trello_sync.registry_board_id');
-        if (!$boardId) {
-            throw new \RuntimeException('Missing trello.registry_board_id config.');
+        $registryBoardId = (string) config('trello_sync.registry_board_id');
+        if ($registryBoardId === '') {
+            throw new \RuntimeException('Missing trello_sync.registry_board_id config.');
         }
 
+        /** @var array<string, string> $cf */
         $cf = config('trello_sync.sprint_control.control_field_ids', []);
-        foreach (['status','starts_at','ends_at','sprint_board'] as $required) {
+        foreach (['status', 'starts_at', 'ends_at', 'sprint_board'] as $required) {
             if (empty($cf[$required])) {
-                throw new \RuntimeException("Missing trello_sync.control_field_ids.$required config.");
+                throw new \RuntimeException("Missing trello_sync.sprint_control.control_field_ids.{$required} config.");
             }
         }
 
+        /** @var array<string, string> $statusOptionMap */
         $statusOptionMap = config('trello_sync.sprint_control.status_option_map', []);
 
-        // Get cards + their custom field items in one go
         // Trello supports: /boards/{id}/cards?customFieldItems=true
-        $cards = $this->trello->get("/boards/{$boardId}/cards", [
-            'fields' => 'name,closed,desc,url,idBoard,dateLastActivity',
+        $cards = $this->trello->get("/boards/{$registryBoardId}/cards", [
+            'fields' => 'name,url,dateLastActivity',
             'customFieldItems' => 'true',
         ]);
 
         $count = 0;
 
-        foreach ($cards as $card) {
+        foreach (($cards ?? []) as $card) {
             $items = $card['customFieldItems'] ?? [];
             $byFieldId = [];
             foreach ($items as $it) {
@@ -47,43 +70,51 @@ class SyncSprintRegistryAction
                 }
             }
 
-            $status = $this->readDropdown($byFieldId[$cf['status']] ?? null, $statusOptionMap);
+            $status = $this->readDropdownStatus(
+                $registryBoardId,
+                $cf['status'],
+                $byFieldId[$cf['status']] ?? null,
+                $statusOptionMap
+            );
+
             $startsAt = $this->readDate($byFieldId[$cf['starts_at']] ?? null);
             $endsAt = $this->readDate($byFieldId[$cf['ends_at']] ?? null);
 
-            // Sprint board ref can be URL or raw board id depending on your field usage
+            // sprint board can be stored as:
+            // - board id (24 hex)
+            // - shortLink (8 chars)
+            // - URL like https://trello.com/b/{shortLink}/{name}
             $boardRef = $this->readTextOrUrl($byFieldId[$cf['sprint_board']] ?? null);
-            $sprintBoardId = $this->extractBoardId($boardRef) ?: $boardRef; // if ref itself is an id
-            $sprintBoardId = is_string($sprintBoardId) ? trim($sprintBoardId) : null;
+            $sprintBoardIdOrShortLink = $this->extractBoardIdentifier($boardRef);
 
-            if (!$sprintBoardId) {
-                // not a sprint card (or incomplete); ignore
+            if (!$sprintBoardIdOrShortLink) {
+                // Not a sprint control card (or incomplete) -> ignore.
                 continue;
             }
 
-            // Optional done list ids (json/text)
+            // If start/end are missing, still allow creation but make it obvious in UI.
+            $startsAt = $startsAt ?? now();
+            $endsAt = $endsAt ?? now()->addWeeks(2);
+
             $doneListIds = [];
             if (!empty($cf['done_list_ids'])) {
                 $raw = $this->readTextOrUrl($byFieldId[$cf['done_list_ids']] ?? null);
                 $doneListIds = $this->parseDoneListIds($raw);
             }
 
-            // Determine closed_at if status indicates closed
             $closedAt = null;
             if ($status === 'closed') {
-                // Use endsAt if present, else now
                 $closedAt = $endsAt ?? now();
             }
 
-            // Upsert
             Sprint::updateOrCreate(
-                ['trello_control_card_id' => $card['id']],
+                ['trello_control_card_id' => (string) ($card['id'] ?? '')],
                 [
-                    'name' => $card['name'] ?? ('Sprint ' . Str::upper(Str::random(4))),
-                    'starts_at' => $startsAt ?? now(),
-                    'ends_at' => $endsAt ?? (now()->addWeeks(2)),
+                    'name' => (string) ($card['name'] ?? ('Sprint ' . Str::upper(Str::random(4)))),
+                    'starts_at' => $startsAt,
+                    'ends_at' => $endsAt,
                     'closed_at' => $closedAt,
-                    'trello_board_id' => $sprintBoardId,
+                    'trello_board_id' => $sprintBoardIdOrShortLink,
                     'done_list_ids' => $doneListIds ?: null,
                 ]
             );
@@ -94,25 +125,68 @@ class SyncSprintRegistryAction
         return $count;
     }
 
-    private function readDropdown(?array $item, array $optionMap): ?string
-    {
+    private function readDropdownStatus(
+        string $registryBoardId,
+        string $statusFieldId,
+        ?array $item,
+        array $statusOptionMap
+    ): ?string {
         if (!$item) return null;
 
-        $idValue = $item['idValue'] ?? null;
-        if (!$idValue) return null;
+        $optionId = $item['idValue'] ?? null;
+        if (!$optionId) return null;
 
-        // prefer optionMap (stable)
-        if (isset($optionMap[$idValue])) return $optionMap[$idValue];
+        // Preferred: explicit mapping in config (stable even if option text changes)
+        if (isset($statusOptionMap[$optionId])) {
+            return $statusOptionMap[$optionId];
+        }
 
-        // fallback: if you used labels and not option ids (less ideal)
+        // Fallback: resolve option text from board custom fields and normalise
+        $text = $this->resolveOptionText($registryBoardId, $statusFieldId, $optionId);
+        if ($text === null) return null;
+
+        $norm = Str::of($text)->lower()->trim();
+
+        if ($norm->contains('close')) return 'closed';
+        if ($norm->contains('active') || $norm->contains('current') || $norm->contains('open')) return 'active';
+        if ($norm->contains('plan') || $norm->contains('next') || $norm->contains('upcoming')) return 'planned';
+
         return null;
+    }
+
+    private function resolveOptionText(string $boardId, string $customFieldId, string $optionId): ?string
+    {
+        if (!isset($this->optionTextByField[$customFieldId])) {
+            // Build option maps for this board once
+            $fields = $this->trello->get("/boards/{$boardId}/customFields", []);
+            $map = [];
+
+            foreach (($fields ?? []) as $f) {
+                $id = $f['id'] ?? null;
+                if (!$id) continue;
+
+                $options = $f['options'] ?? [];
+                $optMap = [];
+                foreach ($options as $opt) {
+                    $oid = $opt['id'] ?? null;
+                    $oval = $opt['value']['text'] ?? null;
+                    if ($oid && is_string($oval)) {
+                        $optMap[$oid] = $oval;
+                    }
+                }
+                $map[$id] = $optMap;
+            }
+
+            $this->optionTextByField = $map + $this->optionTextByField;
+        }
+
+        return $this->optionTextByField[$customFieldId][$optionId] ?? null;
     }
 
     private function readDate(?array $item): ?Carbon
     {
         if (!$item) return null;
 
-        // date custom field appears under value.date
         $val = $item['value']['date'] ?? null;
         if (!$val) return null;
 
@@ -127,38 +201,30 @@ class SyncSprintRegistryAction
     {
         if (!$item) return null;
 
-        // text custom field: value.text
         if (!empty($item['value']['text'])) return (string) $item['value']['text'];
-
-        // number custom field: value.number
         if (isset($item['value']['number'])) return (string) $item['value']['number'];
-
-        // checkbox: value.checked (true/false)
         if (isset($item['value']['checked'])) return $item['value']['checked'] ? 'true' : 'false';
 
         return null;
     }
 
-    private function extractBoardId(?string $ref): ?string
+    private function extractBoardIdentifier(?string $ref): ?string
     {
         if (!$ref) return null;
 
-        // Trello board URLs are like https://trello.com/b/{shortLink}/{name}
-        // That doesn't include board id. If you store shortLink, you can look up /boards/{shortLink}
-        // If you store the actual board id, return it as-is.
-        // Here: if it looks like an id (24 chars hex), accept it.
         $t = trim($ref);
+
+        // Board id (24 hex)
         if (preg_match('/^[a-f0-9]{24}$/i', $t)) {
             return $t;
         }
 
-        // If you store shortLink (8 chars), you can also accept it:
+        // Board shortLink (8 chars) is accepted by Trello as a board identifier
         if (preg_match('/^[a-zA-Z0-9]{8}$/', $t)) {
-            // We'll treat shortLink as a board identifier usable in Trello API
             return $t;
         }
 
-        // If you store URL, try to extract /b/{shortLink}/
+        // URL like https://trello.com/b/{shortLink}/{name}
         if (preg_match('~/b/([a-zA-Z0-9]{8})/~', $t, $m)) {
             return $m[1];
         }
