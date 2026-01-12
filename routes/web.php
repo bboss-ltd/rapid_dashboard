@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Reports\SprintBurndownController;
+use App\Http\Controllers\Reports\SprintRolloverController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -32,3 +34,11 @@ Route::resource('sprint-snapshots', App\Http\Controllers\SprintSnapshotControlle
 Route::resource('sprints', App\Http\Controllers\SprintController::class)->except('create', 'edit', 'destroy');
 
 Route::resource('sprint-snapshots', App\Http\Controllers\SprintSnapshotController::class)->only('index', 'show');
+
+Route::prefix('reports')->group(function () {
+    Route::get('/sprints/{sprint}/burndown.json', [SprintBurndownController::class, 'json']);
+    Route::get('/sprints/{sprint}/burndown.csv', [SprintBurndownController::class, 'csv']);
+
+    Route::get('/sprints/{sprint}/rollover.json', [SprintRolloverController::class, 'json']);
+    Route::get('/sprints/{sprint}/rollover.csv', [SprintRolloverController::class, 'csv']);
+});
