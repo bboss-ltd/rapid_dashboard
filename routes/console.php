@@ -1,6 +1,7 @@
 <?php
 
 use App\Domains\Sprints\Actions\DetectAndCloseSprintAction;
+use App\Domains\Sprints\Actions\ReconcileSprintBoardStateAction;
 use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
 use App\Domains\TrelloSync\Actions\PollBoardActionsAction;
 use App\Models\Sprint;
@@ -12,6 +13,7 @@ Schedule::call(function () {
         ->each(function ($sprint) {
             app(PollBoardActionsAction::class)->run($sprint);
             app(DetectAndCloseSprintAction::class)->run($sprint);
+            app(ReconcileSprintBoardStateAction::class)->run($sprint);
         });
 })->everyFiveMinutes();
 

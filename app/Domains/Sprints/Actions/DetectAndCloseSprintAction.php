@@ -38,6 +38,8 @@ final class DetectAndCloseSprintAction
         }
 
         if ($statusValueId && $statusValueId === $sprint->trello_closed_option_id) {
+            app(ReconcileSprintBoardStateAction::class)->run($sprint);
+
             // Take end snapshot then mark closed
             $this->takeSnapshot->run($sprint, 'end', 'trello_flag');
             $sprint->closed_at = now();
