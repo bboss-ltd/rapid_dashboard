@@ -5,6 +5,7 @@ use App\Http\Controllers\Reports\SprintBurndownController;
 use App\Http\Controllers\Reports\SprintRolloverController;
 use App\Http\Controllers\Reports\SprintSummaryController;
 use App\Http\Controllers\Reports\SprintVelocityController;
+use App\Http\Controllers\Wallboard\WallboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -44,13 +45,16 @@ Route::prefix('reports')->group(function () {
 
     Route::get('/sprints/{sprint}/rollover.json', [SprintRolloverController::class, 'json']);
     Route::get('/sprints/{sprint}/rollover.csv', [SprintRolloverController::class, 'csv']);
-    
+
     Route::get('/sprints/{sprint}/summary.json', [SprintSummaryController::class, 'json']);
 
     Route::get('/velocity.json', [SprintVelocityController::class, 'json']);
     Route::get('/velocity.csv', [SprintVelocityController::class, 'csv']);
-
-
 });
 
 Route::get('/ops/sprints/{sprint}', [SprintOpsController::class, 'show']);
+
+Route::middleware(['wallboard.access'])->group(function () {
+    Route::get('/wallboard', [WallboardController::class, 'index'])->name('wallboard.index');
+    Route::get('/wallboard/sprints/{sprint}', [WallboardController::class, 'sprint'])->name('wallboard.sprint');
+});
