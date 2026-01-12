@@ -14,7 +14,16 @@
 
                 <div class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
                     <div><span class="font-semibold">Board:</span> {{ $sprint->trello_board_id }}</div>
-                    <div><span class="font-semibold">Dates:</span> {{ optional($sprint->starts_at)->format('Y-m-d H:i') }} → {{ optional($sprint->ends_at)->format('Y-m-d H:i') }}</div>
+                    <div>
+                        <span class="font-semibold">Dates:</span>
+                        <x-ui.datetime :value="$sprint->starts_at" :format="config('display.datetime')" />
+                        →
+                        <x-ui.datetime :value="$sprint->ends_at" :format="config('display.datetime')" />
+                    </div>
+                    <div>
+                        <span class="font-semibold">Closed:</span>
+                        <x-ui.datetime :value="$sprint->closed_at" :format="config('display.datetime')" />
+                    </div>
                 </div>
             </div>
 
@@ -26,7 +35,7 @@
                     <a class="text-indigo-600 dark:text-indigo-300 hover:underline" href="/reports/sprints/{{ $sprint->id }}/burndown.csv">Burndown CSV</a>
                     <a class="text-indigo-600 dark:text-indigo-300 hover:underline" href="/reports/sprints/{{ $sprint->id }}/rollover.json">Rollover JSON</a>
                     <a class="text-indigo-600 dark:text-indigo-300 hover:underline" href="/reports/sprints/{{ $sprint->id }}/rollover.csv">Rollover CSV</a>
-                    <a class="text-indigo-600 dark:text-indigo-300 hover:underline" href="{{ route('sprints.snapshots.index', $sprint) }}">Snapshots</a>
+                    <a class="text-indigo-600 dark:text-indigo-300 hover:underline" href="{{ route('sprints.snapshots.index', $sprint) }}" wire:navigate>Snapshots</a>
                 </div>
             </div>
         </div>
@@ -69,12 +78,14 @@
                         <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
                         @forelse($snapshots as $snap)
                             <tr>
-                                <td class="px-3 py-2">{{ $snap->taken_at->format('Y-m-d H:i:s') }}</td>
+                                <td class="px-3 py-2">
+                                    <x-ui.datetime :value="$snap->taken_at" :format="config('display.datetime_seconds')" />
+                                </td>
                                 <td class="px-3 py-2">{{ $snap->type }}</td>
                                 <td class="px-3 py-2">{{ $snap->source }}</td>
                                 <td class="px-3 py-2">
                                     <a class="text-indigo-600 dark:text-indigo-300 hover:underline"
-                                       href="{{ route('sprints.snapshots.show', [$sprint, $snap]) }}">
+                                       href="{{ route('sprints.snapshots.show', [$sprint, $snap]) }}" wire:navigate>
                                         Open
                                     </a>
                                 </td>
@@ -101,7 +112,8 @@
                     </div>
                 @else
                     <div class="text-xs text-zinc-600 dark:text-zinc-300 mb-2">
-                        {{ $latestSnapshot->taken_at->format('Y-m-d H:i:s') }} ({{ $latestSnapshot->type }} / {{ $latestSnapshot->source }})
+                        <x-ui.datetime :value="$latestSnapshot->taken_at" :format="config('display.datetime_seconds')" />
+                        ({{ $latestSnapshot->type }} / {{ $latestSnapshot->source }})
                     </div>
 
                     <div class="overflow-x-auto">

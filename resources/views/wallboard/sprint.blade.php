@@ -30,7 +30,9 @@
         <div>
             <div class="title">{{ $sprint->name }}</div>
             <div class="sub">
-                {{ optional($sprint->starts_at)->format('D j M H:i') }} → {{ optional($sprint->ends_at)->format('D j M H:i') }}
+                <x-ui.datetime :value="$sprint->starts_at" :format="config('display.datetime')" />
+                →
+                <x-ui.datetime :value="$sprint->ends_at" :format="config('display.datetime')" />
                 @if($sprint->closed_at)
                     <span class="badge warn" style="margin-left: 10px;">Closed</span>
                 @else
@@ -40,7 +42,7 @@
         </div>
 
         <div class="badge">
-            Last refresh: {{ now()->format('H:i:s') }}
+            Last refresh: <x-ui.datetime :value="now()" :format="config('display.datetime_seconds')" />
         </div>
     </div>
 

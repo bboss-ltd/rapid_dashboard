@@ -8,7 +8,7 @@
         <form method="GET" class="flex flex-col md:flex-row gap-3">
             <input
                 name="q"
-                value="{{ $search }}"
+                value="{{ $search ?? '' }}"
                 placeholder="Search by sprint name…"
                 class="w-full md:flex-1 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 px-3 py-2"
             />
@@ -17,9 +17,9 @@
                 name="status"
                 class="w-full md:w-56 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 px-3 py-2"
             >
-                <option value="open" @selected($status === 'open')>Open</option>
-                <option value="closed" @selected($status === 'closed')>Closed</option>
-                <option value="all" @selected($status === 'all')>All</option>
+                <option value="open" @selected(($status ?? 'open') === 'open')>Open</option>
+                <option value="closed" @selected(($status ?? 'open') === 'closed')>Closed</option>
+                <option value="all" @selected(($status ?? 'open') === 'all')>All</option>
             </select>
 
             <button class="rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 px-4 py-2">
@@ -46,10 +46,16 @@
                             <div class="font-medium">{{ $sprint->name }}</div>
                             <div class="text-xs text-zinc-600 dark:text-zinc-300">Board: {{ $sprint->trello_board_id }}</div>
                         </td>
+
                         <td class="px-4 py-3 text-zinc-700 dark:text-zinc-200">
-                            <div>{{ optional($sprint->starts_at)->format('Y-m-d H:i') }}</div>
-                            <div>{{ optional($sprint->ends_at)->format('Y-m-d H:i') }}</div>
+                            <div>
+                                <x-ui.datetime :value="$sprint->starts_at" :format="config('display.datetime')" />
+                            </div>
+                            <div>
+                                <x-ui.datetime :value="$sprint->ends_at" :format="config('display.datetime')" />
+                            </div>
                         </td>
+
                         <td class="px-4 py-3">
                             @if($sprint->closed_at)
                                 <span class="inline-flex items-center rounded-full bg-zinc-200 dark:bg-zinc-700 px-2 py-1 text-xs">
@@ -61,11 +67,13 @@
                                     </span>
                             @endif
                         </td>
+
                         <td class="px-4 py-3">
-                            <span class="text-zinc-700 dark:text-zinc-200">{{ $sprint->snapshots_count }}</span>
+                            <span class="text-zinc-700 dark:text-zinc-200">{{ $sprint->snapshots_count ?? '—' }}</span>
                         </td>
+
                         <td class="px-4 py-3 text-right">
-                            <a class="text-indigo-600 dark:text-indigo-300 hover:underline" href="{{ route('sprints.show', $sprint) }}">
+                            <a class="text-indigo-600 dark:text-indigo-300 hover:underline" href="{{ route('sprints.show', $sprint) }}" wire:navigate>
                                 View
                             </a>
                         </td>

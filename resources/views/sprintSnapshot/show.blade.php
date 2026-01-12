@@ -5,7 +5,10 @@
                 <h1 class="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">Snapshot</h1>
                 <div class="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
                     <div><span class="font-semibold">Sprint:</span> {{ $sprint->name }}</div>
-                    <div><span class="font-semibold">Taken:</span> {{ $snapshot->taken_at->format('Y-m-d H:i:s') }}</div>
+                    <div>
+                        <span class="font-semibold">Taken:</span>
+                        <x-ui.datetime :value="$snapshot->taken_at" :format="config('display.datetime_seconds')" />
+                    </div>
                     <div><span class="font-semibold">Type:</span> {{ $snapshot->type }} / {{ $snapshot->source }}</div>
                 </div>
             </div>

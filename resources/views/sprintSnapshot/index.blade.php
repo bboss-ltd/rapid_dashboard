@@ -24,7 +24,9 @@
                 <tbody class="divide-y divide-zinc-200 dark:divide-zinc-800">
                 @forelse($snapshots as $snap)
                     <tr class="text-zinc-800 dark:text-zinc-100">
-                        <td class="px-4 py-3">{{ $snap->taken_at->format('Y-m-d H:i:s') }}</td>
+                        <td class="px-4 py-3">
+                            <x-ui.datetime :value="$snap->taken_at" :format="config('display.datetime_seconds')" />
+                        </td>
                         <td class="px-4 py-3">{{ $snap->type }}</td>
                         <td class="px-4 py-3">{{ $snap->source }}</td>
                         <td class="px-4 py-3 text-right">
