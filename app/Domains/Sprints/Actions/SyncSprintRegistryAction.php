@@ -44,6 +44,7 @@ final class SyncSprintRegistryAction
 
         /** @var array<string, string> $cf */
         $cf = config('trello_sync.sprint_control.control_field_ids', []);
+
         foreach (['status', 'starts_at', 'ends_at', 'sprint_board'] as $required) {
             if (empty($cf[$required])) {
                 throw new \RuntimeException("Missing trello_sync.sprint_control.control_field_ids.{$required} config.");
