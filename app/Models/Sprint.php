@@ -54,4 +54,14 @@ class Sprint extends Model
     {
         return $this->closed_at !== null;
     }
+
+    public function scopeActive($query)
+    {
+        $now = now();
+
+        return $query->whereNull('closed_at')
+            ->where('starts_at', '<=', $now)
+            ->where('ends_at', '>=', $now)
+            ->orderByDesc('starts_at');
+    }
 }

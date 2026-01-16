@@ -9,21 +9,31 @@ use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    /**
+     * Legacy route: /dashboards
+     *
+     * We treat each "dashboard" as a Sprint row.
+     */
     public function index(Request $request): View
     {
-        $dashboards = Dashboard::all();
+        $sprints = Sprint::query()
+            ->orderByDesc('starts_at')
+            ->get();
 
         return view('dashboard.index', [
             'sprints' => $sprints,
         ]);
     }
 
+    /**
+     * Legacy route: /dashboards/{dashboard}
+     *
+     * Route model binding resolves Dashboard which extends Sprint.
+     */
     public function show(Request $request, Dashboard $dashboard): View
     {
-        $sprint = Sprint::find($id);
-
         return view('dashboard.show', [
-            'sprint' => $sprint,
+            'sprint' => $dashboard,
         ]);
     }
 }

@@ -47,37 +47,37 @@
     </div>
 
     @php
+
         $endTotals = $summary['end_totals'] ?? null;
         $hasEnd = $summary['has_end_snapshot'] ?? false;
 
         // For “live” wallboard, use latest series point if available
-        $liveScope = $latestPoint['scope_points'] ?? ($endTotals['scope_points'] ?? 0);
-        $liveDone = $latestPoint['done_points'] ?? ($endTotals['completed_points'] ?? 0);
-        $liveRemaining = $latestPoint['remaining_points'] ?? ($endTotals['remaining_points'] ?? 0);
+        $liveScope = App\Services\Trello\StoryPointToRelativeSizesConverter::handle($latestPoint['scope_points'] ?? ($endTotals['scope_points'] ?? 0));
+        $liveDone = App\Services\Trello\StoryPointToRelativeSizesConverter::handle($latestPoint['done_points'] ?? ($endTotals['completed_points'] ?? 0));
+        $liveRemaining = App\Services\Trello\StoryPointToRelativeSizesConverter::handle($latestPoint['remaining_points'] ?? ($endTotals['remaining_points'] ?? 0));
 
         $rollover = $summary['rollover'] ?? ['cards_count' => 0, 'points' => 0];
     @endphp
 
     <div class="grid">
         <div class="card">
-            <div class="k">Burndown (remaining work over time)</div>
-            <div class="v">{{ $liveRemaining }}</div>
+            <div class="k">Line 1</div>
+            <div class="v">PIE</div>
         </div>
 
         <div class="card">
-            <div class="k">Done points</div>
-            <div class="v">{{ $liveDone }}</div>
+            <div class="k">Line 2</div>
+            <div class="v">PIE</div>
         </div>
 
         <div class="card">
-            <div class="k">Scope points</div>
-            <div class="v">{{ $liveScope }}</div>
+            <div class="k">Line 3</div>
+            <div class="v">PIE</div>
         </div>
 
         <div class="card">
-            <div class="k">Rollover (if closed)</div>
-            <div class="v">{{ $rollover['points'] ?? 0 }}</div>
-            <div class="small">{{ $rollover['cards_count'] ?? 0 }} cards</div>
+            <div class="k">Line 4</div>
+            <div class="v">PIE</div>
         </div>
     </div>
 
@@ -117,6 +117,8 @@
 
             </div>
         </div>
+
+
 
         <div class="chartCard">
 {{--            <div class="k">Notes</div>--}}
@@ -168,7 +170,10 @@
             </div>
 
         </div>
+
+
     </div>
+
 </div>
 
 <script>
