@@ -54,11 +54,11 @@ final class ReportScheduleControllerTest extends TestCase
     public function store_saves_and_redirects(): void
     {
         $report_definition = ReportDefinition::factory()->create();
-        $name = fake()->name();
-        $is_enabled = fake()->boolean();
-        $cron = fake()->word();
-        $timezone = fake()->word();
-        $default_params = fake()->;
+        $name = $this->faker->name();
+        $is_enabled = $this->faker->boolean();
+        $cron = $this->faker->word();
+        $timezone = $this->faker->word();
+        $default_params = $this->faker->;
 
         $response = $this->post(route('report-schedules.store'), [
             'report_definition_id' => $report_definition->id,
@@ -126,11 +126,11 @@ final class ReportScheduleControllerTest extends TestCase
     {
         $reportSchedule = ReportSchedule::factory()->create();
         $report_definition = ReportDefinition::factory()->create();
-        $name = fake()->name();
-        $is_enabled = fake()->boolean();
-        $cron = fake()->word();
-        $timezone = fake()->word();
-        $default_params = fake()->;
+        $name = $this->faker->name();
+        $is_enabled = $this->faker->boolean();
+        $cron = $this->faker->word();
+        $timezone = $this->faker->word();
+        $default_params = $this->faker->;
 
         $response = $this->put(route('report-schedules.update', $reportSchedule), [
             'report_definition_id' => $report_definition->id,

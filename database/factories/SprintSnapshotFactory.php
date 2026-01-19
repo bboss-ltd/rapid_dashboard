@@ -14,9 +14,9 @@ class SprintSnapshotFactory extends Factory
     {
         return [
             'sprint_id' => Sprint::factory(),
-            'type' => fake()->randomElement(["start","end","ad_hoc"]),
-            'taken_at' => fake()->dateTime(),
-            'source' => fake()->word(),
+            'type' => $this->faker->randomElement(["start","end","ad_hoc"]),
+            'taken_at' => $this->faker->dateTime(),
+            'source' => $this->faker->word(),
             'meta' => '{}',
         ];
     }

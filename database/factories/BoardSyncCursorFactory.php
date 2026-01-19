@@ -12,10 +12,10 @@ class BoardSyncCursorFactory extends Factory
     public function definition(): array
     {
         return [
-            'trello_board_id' => fake()->word(),
-            'last_action_occurred_at' => fake()->dateTime(),
-            'last_action_id' => fake()->word(),
-            'last_polled_at' => fake()->dateTime(),
+            'trello_board_id' => $this->faker->word(),
+            'last_action_occurred_at' => $this->faker->dateTime(),
+            'last_action_id' => $this->faker->word(),
+            'last_polled_at' => $this->faker->dateTime(),
         ];
     }
 }

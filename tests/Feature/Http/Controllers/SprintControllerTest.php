@@ -43,10 +43,10 @@ final class SprintControllerTest extends TestCase
     #[Test]
     public function store_saves_and_redirects(): void
     {
-        $name = fake()->name();
-        $trello_board_id = fake()->word();
-        $starts_at = Carbon::parse(fake()->dateTime());
-        $ends_at = Carbon::parse(fake()->dateTime());
+        $name = $this->faker->name();
+        $trello_board_id = $this->faker->word();
+        $starts_at = Carbon::parse($this->faker->dateTime());
+        $ends_at = Carbon::parse($this->faker->dateTime());
 
         $response = $this->post(route('sprints.store'), [
             'name' => $name,
@@ -96,10 +96,10 @@ final class SprintControllerTest extends TestCase
     public function update_redirects(): void
     {
         $sprint = Sprint::factory()->create();
-        $name = fake()->name();
-        $trello_board_id = fake()->word();
-        $starts_at = Carbon::parse(fake()->dateTime());
-        $ends_at = Carbon::parse(fake()->dateTime());
+        $name = $this->faker->name();
+        $trello_board_id = $this->faker->word();
+        $starts_at = Carbon::parse($this->faker->dateTime());
+        $ends_at = Carbon::parse($this->faker->dateTime());
 
         $response = $this->put(route('sprints.update', $sprint), [
             'name' => $name,

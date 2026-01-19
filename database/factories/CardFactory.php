@@ -12,9 +12,9 @@ class CardFactory extends Factory
     public function definition(): array
     {
         return [
-            'trello_card_id' => fake()->word(),
-            'name' => fake()->name(),
-            'last_activity_at' => fake()->dateTime(),
+            'trello_card_id' => $this->faker->word(),
+            'name' => $this->faker->name(),
+            'last_activity_at' => $this->faker->dateTime(),
         ];
     }
 }

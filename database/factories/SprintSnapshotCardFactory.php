@@ -16,9 +16,9 @@ class SprintSnapshotCardFactory extends Factory
         return [
             'sprint_snapshot_id' => SprintSnapshot::factory(),
             'card_id' => Card::factory(),
-            'trello_list_id' => fake()->word(),
-            'estimate_points' => fake()->numberBetween(-10000, 10000),
-            'is_done' => fake()->boolean(),
+            'trello_list_id' => $this->faker->word(),
+            'estimate_points' => $this->faker->numberBetween(-10000, 10000),
+            'is_done' => $this->faker->boolean(),
             'meta' => '{}',
         ];
     }

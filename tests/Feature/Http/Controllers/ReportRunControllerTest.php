@@ -55,8 +55,8 @@ final class ReportRunControllerTest extends TestCase
     public function store_saves_and_redirects(): void
     {
         $report_definition = ReportDefinition::factory()->create();
-        $status = fake()->randomElement(/** enum_attributes **/);
-        $params = fake()->;
+        $status = $this->faker->randomElement(/** enum_attributes **/);
+        $params = $this->faker->;
         $user = User::factory()->create();
 
         $response = $this->post(route('report-runs.store'), [
