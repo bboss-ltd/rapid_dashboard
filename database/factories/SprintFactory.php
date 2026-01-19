@@ -12,16 +12,16 @@ class SprintFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
-            'trello_board_id' => fake()->word(),
-            'starts_at' => fake()->dateTime(),
-            'ends_at' => fake()->dateTime(),
-            'closed_at' => fake()->dateTime(),
+            'name' => $this->faker->name(),
+            'trello_board_id' => $this->faker->word(),
+            'starts_at' => $this->faker->dateTime(),
+            'ends_at' => $this->faker->dateTime(),
+            'closed_at' => $this->faker->dateTime(),
             'done_list_ids' => '{}',
-            'trello_control_card_id' => fake()->word(),
-            'trello_status_custom_field_id' => fake()->word(),
-            'trello_closed_option_id' => fake()->word(),
-            'last_polled_at' => fake()->dateTime(),
+            'trello_control_card_id' => $this->faker->word(),
+            'trello_status_custom_field_id' => $this->faker->word(),
+            'trello_closed_option_id' => $this->faker->word(),
+            'last_polled_at' => $this->faker->dateTime(),
         ];
     }
 }

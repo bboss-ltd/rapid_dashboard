@@ -12,13 +12,13 @@ class TrelloActionFactory extends Factory
     public function definition(): array
     {
         return [
-            'trello_action_id' => fake()->word(),
-            'trello_board_id' => fake()->word(),
-            'trello_card_id' => fake()->word(),
-            'type' => fake()->word(),
-            'occurred_at' => fake()->dateTime(),
+            'trello_action_id' => $this->faker->word(),
+            'trello_board_id' => $this->faker->word(),
+            'trello_card_id' => $this->faker->word(),
+            'type' => $this->faker->word(),
+            'occurred_at' => $this->faker->dateTime(),
             'payload' => '{}',
-            'processed_at' => fake()->dateTime(),
+            'processed_at' => $this->faker->dateTime(),
         ];
     }
 }
