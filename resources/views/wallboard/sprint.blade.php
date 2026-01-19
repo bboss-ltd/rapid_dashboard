@@ -1,4 +1,5 @@
-<!doctype html>
+@php use Illuminate\Support\Str; @endphp
+    <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
@@ -6,32 +7,178 @@
     <meta http-equiv="refresh" content="{{ $refreshSeconds }}">
     <title>Sprint Overview</title>
     <style>
-        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b0f19; color: #e8eefc; }
-        .wrap { padding: 32px; }
-        .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
-        .title { font-size: 40px; font-weight: 800; line-height: 1.1; }
-        .sub { opacity: .8; margin-top: 8px; font-size: 16px; }
-        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 24px; }
-        .card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 18px; padding: 18px; }
-        .k { opacity: .75; font-size: 14px; }
-        .v { font-size: 40px; font-weight: 800; margin-top: 8px; }
-        .small { font-size: 22px; font-weight: 700; margin-top: 10px; opacity: .95; }
-        .cardHeader { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
-        .cardTitle { font-weight: 700; font-size: 16px; }
-        .cardSub { font-size: 12px; opacity: .8; margin-top: 4px; }
-        .cardAction { align-self:flex-start; }
-        .row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px; }
-        .chartCard { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 18px; padding: 18px; }
-        canvas { width: 100%; height: 360px; }
-        .foot { margin-top: 16px; opacity: .7; font-size: 13px; display:flex; justify-content: space-between; }
-        .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.10); font-size: 13px; }
-        .warn { background: rgba(255, 180, 0, .14); border-color: rgba(255, 180, 0, .25); }
-        .trendInline { display:flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
-        .trendValue { font-size: 22px; font-weight: 800; letter-spacing: .2px; }
-        .trendLabel { font-size: 12px; opacity: .8; margin-left: 6px; }
-        .trend-good { color: #65d38a; }
-        .trend-bad { color: #ff6b6b; }
-        .trend-neutral { color: #e8eefc; }
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            margin: 0;
+            background: #0b0f19;
+            color: #e8eefc;
+        }
+
+        .wrap {
+            padding: 32px;
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 24px;
+        }
+
+        .title {
+            font-size: 40px;
+            font-weight: 800;
+            line-height: 1.1;
+        }
+
+        .sub {
+            opacity: .8;
+            margin-top: 8px;
+            font-size: 16px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        .k {
+            opacity: .75;
+            font-size: 14px;
+        }
+
+        .v {
+            font-size: 40px;
+            font-weight: 800;
+            margin-top: 8px;
+        }
+
+        .small {
+            font-size: 22px;
+            font-weight: 700;
+            margin-top: 10px;
+            opacity: .95;
+        }
+
+        .cardHeader {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .cardTitle {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .cardSub {
+            font-size: 12px;
+            opacity: .8;
+            margin-top: 4px;
+        }
+
+        .cardAction {
+            align-self: flex-start;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .chartCard {
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 360px;
+        }
+
+        .foot {
+            margin-top: 16px;
+            opacity: .7;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .08);
+            border: 1px solid rgba(255, 255, 255, .10);
+            font-size: 13px;
+        }
+
+        .warn {
+            background: rgba(255, 180, 0, .14);
+            border-color: rgba(255, 180, 0, .25);
+        }
+
+        .trendInline {
+            display: flex;
+            gap: 18px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .trendItem {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .trendValue {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: .2px;
+        }
+
+        .trendMeta {
+            font-size: 12px;
+            opacity: .8;
+            margin-top: 4px;
+        }
+
+        .trendArrow {
+            font-size: 14px;
+            margin-left: 6px;
+        }
+
+        .trendTop {
+            font-size: 14px;
+            opacity: .85;
+            margin-top: 6px;
+        }
+
+        .trend-good {
+            color: #65d38a;
+        }
+
+        .trend-bad {
+            color: #ff6b6b;
+        }
+
+        .trend-neutral {
+            color: #e8eefc;
+        }
     </style>
 </head>
 <body>
@@ -40,9 +187,9 @@
         <div>
             <div class="title">Sprint Overview</div>
             <div class="sub">
-                <x-ui.datetime :value="$sprint->starts_at" :format="config('display.date')" />
+                <x-ui.datetime :value="$sprint->starts_at" :format="config('display.date')"/>
                 →
-                <x-ui.datetime :value="$sprint->ends_at" :format="config('display.date')" />
+                <x-ui.datetime :value="$sprint->ends_at" :format="config('display.date')"/>
                 @if($sprint->closed_at)
                     <span class="badge warn" style="margin-left: 10px;">Closed</span>
                 @else
@@ -52,7 +199,8 @@
         </div>
 
         <div class="badge">
-            Last refresh: <x-ui.datetime :value="now()" :format="config('display.datetime_seconds')" />
+            Last refresh:
+            <x-ui.datetime :value="now()" :format="config('display.datetime_seconds')"/>
         </div>
     </div>
 
@@ -77,42 +225,47 @@
                         <div class="cardSub">Cards in Remakes list</div>
                     </div>
                 </div>
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top: 8px;">
+                <div
+                    style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top: 8px;">
                     <div class="v">{{ $remakeTotal ?? 0 }}</div>
                     @php
                         $trendToday = $remakeStats['trend_today'] ?? 'neutral';
                         $trendSprint = $remakeStats['trend_sprint'] ?? 'neutral';
                         $trendMonth = $remakeStats['trend_month'] ?? 'neutral';
+                        $trendIcon = fn($t) => $t === 'bad' ? '▲' : ($t === 'good' ? '▼' : '—');
                     @endphp
                     <div class="trendInline" style="justify-content:flex-end;">
-                        <div>
-                            <span class="trendValue trend-{{ $trendToday }}">{{ $remakeStats['today'] ?? 0 }}</span>
-                            <span class="trendLabel">Today vs yesterday</span>
+                        <div class="trendItem">
+                            <div class="trendTop">Sprint to date: {{ $remakeStats['sprint'] ?? 0 }}</div>
                         </div>
-                        <div>
-                            <span class="trendValue trend-{{ $trendSprint }}">{{ $remakeStats['sprint'] ?? 0 }}</span>
-                            <span class="trendLabel">Sprint pace</span>
+                        <div class="trendItem">
+                            <div class="trendValue trend-{{ $trendToday }}">{{ $remakeStats['today'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendToday) }}</span></div>
+                            <div class="trendMeta">Today vs yesterday</div>
                         </div>
-                        <div>
-                            <span class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}</span>
-                            <span class="trendLabel">Month pace</span>
+                        <div class="trendItem">
+                            <div class="trendValue trend-{{ $trendSprint }}">{{ $remakeStats['sprint'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendSprint) }}</span></div>
+                            <div class="trendMeta">Sprint pace</div>
+                        </div>
+                        <div class="trendItem">
+                            <div class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendMonth) }}</span></div>
+                            <div class="trendMeta">Month pace</div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="chartCard">
-            <div class="cardHeader">
-                <div>
-                    <div class="cardTitle">Burndown</div>
-                    <div class="cardSub">Remaining progress over time</div>
+                <div class="cardHeader">
+                    <div>
+                        <div class="cardTitle">Burndown</div>
+                        <div class="cardSub">Remaining progress over time</div>
+                    </div>
                 </div>
-            </div>
-            <div style="margin-top: 10px;">
-                <div id="chartWrap" style="position: relative;">
-                    <canvas id="burndown"></canvas>
+                <div style="margin-top: 10px;">
+                    <div id="chartWrap" style="position: relative;">
+                        <canvas id="burndown"></canvas>
 
-                    <div id="chartTooltip" style="
+                        <div id="chartTooltip" style="
         position:absolute;
         display:none;
         pointer-events:none;
@@ -127,41 +280,40 @@
         box-shadow: 0 12px 30px rgba(0,0,0,.35);
         backdrop-filter: blur(6px);
     "></div>
-                </div>
+                    </div>
 
-            </div>
-            <div class="foot">
-                <div>
-                    Based on snapshots; historical view stays consistent over time.
+                </div>
+                <div class="foot">
+                    <div>
+                        Based on snapshots; historical view stays consistent over time.
+                    </div>
                 </div>
             </div>
         </div>
-        </div>
-
 
 
         <div class="chartCard">
-{{--            <div class="k">Notes</div>--}}
-{{--            <div style="margin-top: 12px; line-height: 1.5; opacity: .9;">--}}
-{{--                <div>• This page auto-refreshes every {{ $refreshSeconds }}s.</div>--}}
-{{--                <div>• “Remaining” is the latest snapshot point.</div>--}}
-{{--                <div>• Close the sprint in Trello to generate the end snapshot.</div>--}}
-{{--            </div>--}}
+            {{--            <div class="k">Notes</div>--}}
+            {{--            <div style="margin-top: 12px; line-height: 1.5; opacity: .9;">--}}
+            {{--                <div>• This page auto-refreshes every {{ $refreshSeconds }}s.</div>--}}
+            {{--                <div>• “Remaining” is the latest snapshot point.</div>--}}
+            {{--                <div>• Close the sprint in Trello to generate the end snapshot.</div>--}}
+            {{--            </div>--}}
 
-{{--            <div style="margin-top: 18px;">--}}
-{{--                <div class="k">Links</div>--}}
-{{--                <div style="margin-top: 10px; display:flex; flex-direction:column; gap:8px;">--}}
-{{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.json">Burndown JSON</a>--}}
-{{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.csv">Burndown CSV</a>--}}
-{{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/summary.json">Summary JSON</a>--}}
-{{--                </div>--}}
-{{--            </div>--}}
+            {{--            <div style="margin-top: 18px;">--}}
+            {{--                <div class="k">Links</div>--}}
+            {{--                <div style="margin-top: 10px; display:flex; flex-direction:column; gap:8px;">--}}
+            {{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.json">Burndown JSON</a>--}}
+            {{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/burndown.csv">Burndown CSV</a>--}}
+            {{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/summary.json">Summary JSON</a>--}}
+            {{--                </div>--}}
+            {{--            </div>--}}
 
             <div class="chartCard">
                 <div class="cardHeader">
                     <div>
                         <div class="cardTitle">Sprint progress</div>
-                        <div class="cardSub">Completed vs remaining</div>
+                        <div class="cardSub">Completed vs Remaining</div>
                     </div>
                     <div class="cardAction">
                         <button id="manualSyncBtn"
@@ -197,7 +349,7 @@
 
     @if($sprint->sprint_goal)
         <div class="sub" style="margin-top:16px;">
-            Goal: {{ \Illuminate\Support\Str::of($sprint->sprint_goal)->squish()->limit(220) }}
+            Goal: {{ Str::of($sprint->sprint_goal)->squish()->limit(220) }}
         </div>
     @endif
 
@@ -221,7 +373,7 @@
         const showRaw = false;
         const pctDecimals = Number(display.percent_decimals ?? 0);
 
-        const workingDays = (cfg?.working_days ?? [1,2,3,4,5]); // ISO 1..7
+        const workingDays = (cfg?.working_days ?? [1, 2, 3, 4, 5]); // ISO 1..7
         const gridEnabled = !!(cfg?.grid?.enabled ?? true);
         const yTicks = Number(cfg?.grid?.y_ticks ?? 5);
         const xWeekLines = !!(cfg?.grid?.x_week_lines ?? true);
@@ -241,9 +393,16 @@
         const ctx = canvas.getContext('2d');
 
         // ========= Formatting helpers =========
-        const fmtDate = new Intl.DateTimeFormat('en-GB', { year:'numeric', month:'2-digit', day:'2-digit' });
-        const fmtDateTime = new Intl.DateTimeFormat('en-GB', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
-        const fmtDay = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'2-digit' });
+        const fmtDate = new Intl.DateTimeFormat('en-GB', {year: 'numeric', month: '2-digit', day: '2-digit'});
+        const fmtDateTime = new Intl.DateTimeFormat('en-GB', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        const fmtDay = new Intl.DateTimeFormat('en-GB', {weekday: 'short', day: '2-digit', month: '2-digit'});
 
         function toDate(x) {
             if (!x) return null;
@@ -253,13 +412,13 @@
 
         function startOfDay(d) {
             const x = new Date(d);
-            x.setHours(0,0,0,0);
+            x.setHours(0, 0, 0, 0);
             return x;
         }
 
         function endOfDay(d) {
             const x = new Date(d);
-            x.setHours(23,59,59,999);
+            x.setHours(23, 59, 59, 999);
             return x;
         }
 
@@ -299,7 +458,7 @@
                 raw: s,
             }))
             .filter(s => s.taken_at)
-            .sort((a,b) => a.taken_at - b.taken_at);
+            .sort((a, b) => a.taken_at - b.taken_at);
 
         // ========= Build series =========
         function buildDailySeries() {
@@ -376,7 +535,10 @@
             let startScope = 0;
             for (const p of actual) {
                 const s = Number(p.scope_points ?? 0);
-                if (s > 0) { startScope = s; break; }
+                if (s > 0) {
+                    startScope = s;
+                    break;
+                }
             }
             if (startScope <= 0) {
                 startScope = Math.max(...actual.map(p => Number(p.scope_points ?? 0)), 0);
@@ -421,7 +583,10 @@
         let startScopeForBasis = 0;
         for (const p of actual) {
             const s = Number(p.scope_points ?? 0);
-            if (s > 0) { startScopeForBasis = s; break; }
+            if (s > 0) {
+                startScopeForBasis = s;
+                break;
+            }
         }
         if (startScopeForBasis <= 0) {
             startScopeForBasis = Math.max(...actual.map(p => Number(p.scope_points ?? 0)), 0);
@@ -546,7 +711,7 @@
                 return;
             }
 
-            pad = { l: 50, r: 16, t: 16, b: 44 };
+            pad = {l: 50, r: 16, t: 16, b: 44};
 
             const actualYs = actual.filter(p => p.remaining_points !== null).map(p => toDisplayY(p));
             const idealYs = ideal.map(p => (p ? toIdealDisplayY(p) : null)).filter(v => v !== null);
@@ -636,7 +801,7 @@
                 if (p.remaining_points === null) return;
                 const x = xScale(i);
                 const y = yScale(toDisplayY(p));
-                pointPixels.push({ x, y, idx: i });
+                pointPixels.push({x, y, idx: i});
 
                 ctx.beginPath();
                 ctx.arc(x, y, 4, 0, Math.PI * 2);
@@ -733,7 +898,7 @@
             for (const p of pointPixels) {
                 const dx = p.x - x;
                 const dy = p.y - y;
-                const d = Math.sqrt(dx*dx + dy*dy);
+                const d = Math.sqrt(dx * dx + dy * dy);
                 if (d < bestDist) {
                     bestDist = d;
                     best = p;
@@ -798,7 +963,7 @@
         }
 
         // use latest point
-        const latest = actual.length ? actual[actual.length - 1] : null;
+        const latest = [...actual].reverse().find(p => p && p.remaining_points !== null) || null;
         if (latest) {
             drawDonut(Number(latest.done_points ?? 0), Number(latest.remaining_points ?? 0));
         } else {
