@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
-
 use App\Domains\Estimation\EstimatePointsResolver;
+use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +24,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Event::listen(CommandStarting::class, function (CommandStarting $event): void {
+            Log::info('artisan.command.starting', [
+                'command' => $event->command,
+                'input' => $event->input?->getArguments(),
+                'options' => $event->input?->getOptions(),
+            ]);
+        });
     }
 }

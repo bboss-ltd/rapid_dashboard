@@ -9,23 +9,31 @@ use Illuminate\Support\Facades\DB;
 final class BurndownSeriesQuery
 {
     /**
-     * @return Collection<int, array{taken_at:string, scope_points:int, done_points:int, remaining_points:int}>
+     * @return Collection<int, array{taken_at:string, scope_points:int, done_points:int, remaining_points:int, remakes_count:int}>
      */
     public function run(Sprint $sprint, array $types = ['ad_hoc', 'end']): Collection
     {
+        $remakesListId = $sprint->remakes_list_id;
+
         // Aggregate snapshot cards in one pass
-        $rows = DB::table('sprint_snapshots as ss')
+        $query = DB::table('sprint_snapshots as ss')
             ->join('sprint_snapshot_cards as ssc', 'ssc.sprint_snapshot_id', '=', 'ss.id')
             ->where('ss.sprint_id', $sprint->id)
             ->whereIn('ss.type', $types)
             ->groupBy('ss.id', 'ss.taken_at')
             ->orderBy('ss.taken_at')
-            ->select([
-                'ss.taken_at',
-                DB::raw('COALESCE(SUM(COALESCE(ssc.estimate_points,0)),0) as scope_points'),
-                DB::raw('COALESCE(SUM(CASE WHEN ssc.is_done = 1 THEN COALESCE(ssc.estimate_points,0) ELSE 0 END),0) as done_points'),
-            ])
-            ->get();
+            ->select('ss.taken_at')
+            ->selectRaw('COALESCE(SUM(COALESCE(ssc.estimate_points,0)),0) as scope_points')
+            ->selectRaw('COALESCE(SUM(CASE WHEN ssc.is_done = 1 THEN COALESCE(ssc.estimate_points,0) ELSE 0 END),0) as done_points');
+
+        if ($remakesListId) {
+            $query->selectRaw(
+                'COALESCE(SUM(CASE WHEN ssc.trello_list_id = ? THEN 1 ELSE 0 END),0) as remakes_count',
+                [$remakesListId]
+            );
+        }
+
+        $rows = $query->get();
 
         return collect($rows)->map(function ($r) {
             $scope = (int) $r->scope_points;
@@ -37,6 +45,7 @@ final class BurndownSeriesQuery
                 'scope_points' => $scope,
                 'done_points' => $done,
                 'remaining_points' => $remaining,
+                'remakes_count' => (int) ($r->remakes_count ?? 0),
             ];
         });
     }

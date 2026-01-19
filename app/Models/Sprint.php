@@ -17,11 +17,15 @@ class Sprint extends Model
      */
     protected $fillable = [
         'name',
+        'status',
         'trello_board_id',
         'starts_at',
         'ends_at',
         'closed_at',
         'done_list_ids',
+        'trello_registry_card_id',
+        'remakes_list_id',
+        'sprint_goal',
         'trello_control_card_id',
         'trello_status_custom_field_id',
         'trello_closed_option_id',

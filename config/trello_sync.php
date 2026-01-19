@@ -4,22 +4,22 @@ return [
     'registry_board_id' => env('TRELLO_REGISTRY_BOARD_ID'),
 
     'sprint_control' => [
-        // Custom Field IDs from the *registry board*
+        // Custom Field IDs from the *registry board* (optional; name-based lookup used if missing)
         'control_field_ids' => [
-            // dropdown: Planned | Active | Closed
-            'status' => env('TRELLO_CF_SPRINT_STATUS', '5fd1234567890abc12345678'),
+            'status' => env('TRELLO_REGISTRY_STATUS_FIELD_ID', ''),
+            'starts_at' => env('TRELLO_REGISTRY_STARTS_AT_FIELD_ID', ''),
+            'ends_at' => env('TRELLO_REGISTRY_ENDS_AT_FIELD_ID', ''),
+            'sprint_board' => env('TRELLO_REGISTRY_SPRINT_BOARD_FIELD_ID', ''),
+            'done_list_ids' => env('TRELLO_REGISTRY_DONE_LIST_IDS_FIELD_ID', ''),
+        ],
 
-            // date field
-            'starts_at' => env('TRELLO_CF_SPRINT_STARTS_AT', '5fd1234567890abc12345679'),
-
-            // date field
-            'ends_at' => env('TRELLO_CF_SPRINT_ENDS_AT', '5fd1234567890abc1234567a'),
-
-            // url/text field containing the sprint board id OR board url
-            'sprint_board' => env('TRELLO_CF_SPRINT_BOARD', '5fd1234567890abc1234567b'),
-
-            // (optional) a JSON/text field for done list ids, OR omit and infer by list name "Done"
-            'done_list_ids' => env('TRELLO_CF_DONE_LIST_IDS', '5fd1234567890abc1234567c'),
+        // Custom Field names from the *registry board* (default lookup)
+        'control_field_names' => [
+            'status' => env('TRELLO_REGISTRY_STATUS_FIELD_NAME', 'Sprint Status'),
+            'starts_at' => env('TRELLO_REGISTRY_STARTS_AT_FIELD_NAME', 'Starts At'),
+            'ends_at' => env('TRELLO_REGISTRY_ENDS_AT_FIELD_NAME', 'Ends At'),
+            'sprint_board' => env('TRELLO_REGISTRY_SPRINT_BOARD_FIELD_NAME', 'Sprint Board'),
+            'done_list_ids' => env('TRELLO_REGISTRY_DONE_LIST_IDS_FIELD_NAME', 'Done List Ids'),
         ],
 
         // For dropdown mapping: option-id -> our canonical status slug
@@ -27,9 +27,22 @@ return [
         'status_option_map' => [
             // these are Trello dropdown *option ids*
             '64a0aaaabbbbccccddddeeee' => 'planned',
-            '64a0aaaabbbbccccddddeeef' => 'active',
-            '64a0aaaabbbbccccddddee00' => 'closed',
+            '6968f84ab66ae5522fa850cf' => 'active',
+            '6968f84ab66ae5522fa850d0' => 'closed',
         ],
+    ],
+
+    'sprint_board' => [
+        'done_list_names' => array_values(array_filter(array_map('trim', explode(',', env('TRELLO_DONE_LIST_NAMES', 'Done'))))),
+        'remakes_list_name' => env('TRELLO_REMAKES_LIST_NAME', 'Remakes'),
+        'sprint_admin_list_name' => env('TRELLO_SPRINT_ADMIN_LIST_NAME', 'Sprint Admin'),
+        'control_card_name' => env('TRELLO_SPRINT_CONTROL_CARD_NAME', 'Sprint Control'),
+        'starts_at_field_name' => env('TRELLO_SPRINT_STARTS_AT_FIELD_NAME', 'Starts at'),
+        'ends_at_field_name' => env('TRELLO_SPRINT_ENDS_AT_FIELD_NAME', 'Ends at'),
+        'status_field_name' => env('TRELLO_SPRINT_STATUS_FIELD_NAME', 'Sprint Status'),
+        'closed_status_label' => env('TRELLO_SPRINT_CLOSED_STATUS_LABEL', 'Closed'),
+        'diverged_label_name' => env('TRELLO_SPRINT_DIVERGED_LABEL_NAME', 'Diverged Dates'),
+        'diverged_label_color' => env('TRELLO_SPRINT_DIVERGED_LABEL_COLOR', 'red'),
     ],
 
     // Poll cadence is handled by scheduler; this is what we consider "relevant"

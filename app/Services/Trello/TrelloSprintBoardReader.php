@@ -43,8 +43,12 @@ class TrelloSprintBoardReader
 
     public function findCustomFieldIdByName(array $customFields, string $name): ?string
     {
+        $target = strtolower(trim($name));
+        if ($target === '') return null;
+
         foreach ($customFields as $field) {
-            if (($field['name'] ?? null) === $name) return $field['id'] ?? null;
+            $fieldName = strtolower(trim((string) ($field['name'] ?? '')));
+            if ($fieldName === $target) return $field['id'] ?? null;
         }
         return null;
     }

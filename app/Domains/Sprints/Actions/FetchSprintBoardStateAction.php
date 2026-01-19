@@ -25,6 +25,7 @@ final class FetchSprintBoardStateAction
      *     trello_list_id: string,
      *     last_activity_at: \DateTimeInterface|null,
      *     estimate_points: int|null,
+     *     estimation_label: string|null,
      *     is_done: bool
      *   }>
      * }
@@ -68,6 +69,7 @@ final class FetchSprintBoardStateAction
                 'trello_list_id' => $listId,
                 'last_activity_at' => isset($c['dateLastActivity']) ? Carbon::parse($c['dateLastActivity']) : null,
                 'estimate_points' => $points,
+                'estimation_label' => $label,
                 'is_done' => $isDone,
             ];
         }

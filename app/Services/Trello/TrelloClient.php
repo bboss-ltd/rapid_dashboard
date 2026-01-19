@@ -46,4 +46,23 @@ class TrelloClient
         // Trello often expects form-encoded, but JSON generally works for these endpoints.
         return $this->http->put($uri, $data + $query)->throw()->json();
     }
+
+    /**
+     * @throws RequestException
+     * @throws ConnectionException
+     */
+    public function post(string $uri, array $data = [], array $query = []): array
+    {
+        // Trello often expects form-encoded, but JSON generally works for these endpoints.
+        return $this->http->withQueryParameters($query)->post($uri, $data)->throw()->json();
+    }
+
+    /**
+     * @throws RequestException
+     * @throws ConnectionException
+     */
+    public function delete(string $uri, array $query = []): array
+    {
+        return $this->http->delete($uri, $query)->throw()->json();
+    }
 }

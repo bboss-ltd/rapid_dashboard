@@ -8,6 +8,7 @@ use App\Domains\Sprints\Actions\ReconcileSprintBoardStateAction;
 use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
 use App\Http\Controllers\Controller;
 use App\Models\Sprint;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,6 +24,16 @@ class WallboardController extends Controller
      */
     public function index()
     {
+        $activeByStatus = Sprint::query()
+            ->where('status', 'active')
+            ->whereNull('closed_at')
+            ->orderByDesc('starts_at')
+            ->get();
+
+        if ($activeByStatus->count() === 1) {
+            return redirect()->route('wallboard.sprint', $activeByStatus->first());
+        }
+
         $active = Sprint::query()->active()->first();
 
         if ($active) {
@@ -86,12 +97,14 @@ class WallboardController extends Controller
 
         $series = $burndownQuery->run($sprint, $types);
         $latestPoint = $series->last();
+        $remakeStats = $this->buildRemakeStats($sprint, $types);
 
         return view('wallboard.sprint', [
             'sprint' => $sprint,
             'summary' => $summary,
             'series' => $series->values(),
             'latestPoint' => $latestPoint,
+            'remakeStats' => $remakeStats,
             'refreshSeconds' => 60, // tune for TV
         ]);
     }
@@ -114,5 +127,142 @@ class WallboardController extends Controller
             'snapshot_id' => $snap->id,
             'reconcile_snapshot_id' => $reconcileSnap?->id,
         ]);
+    }
+
+    /**
+     * Count remakes by Trello card creation time (derived from card id).
+     */
+    private function buildRemakeStats(Sprint $sprint, array $types): array
+    {
+        $stats = [
+            'total' => 0,
+            'today' => 0,
+            'sprint' => 0,
+            'month' => 0,
+            'prev_today' => 0,
+            'prev_sprint' => null,
+            'prev_month' => 0,
+            'trend_today' => 'neutral',
+            'trend_sprint' => 'neutral',
+            'trend_month' => 'neutral',
+        ];
+
+        $remakesListId = $sprint->remakes_list_id;
+        if (!$remakesListId) {
+            return $stats;
+        }
+
+        $latest = $sprint->snapshots()
+            ->whereIn('type', $types)
+            ->latest('taken_at')
+            ->with(['cards.card:id,trello_card_id'])
+            ->first();
+
+        if (!$latest) {
+            return $stats;
+        }
+
+        $now = now();
+        $todayStart = $now->copy()->startOfDay();
+        $todayEnd = $now->copy()->endOfDay();
+        $yesterdayStart = $now->copy()->subDay()->startOfDay();
+        $yesterdayEnd = $now->copy()->subDay()->endOfDay();
+
+        $monthStart = $now->copy()->startOfMonth();
+        $monthEnd = $now->copy()->endOfMonth();
+        $lastMonthStart = $now->copy()->subMonthNoOverflow()->startOfMonth();
+        $lastMonthEnd = $now->copy()->subMonthNoOverflow()->endOfMonth();
+
+        $sprintStart = $sprint->starts_at ?? $todayStart;
+        $sprintEnd = $sprint->ends_at && $sprint->ends_at < $now ? $sprint->ends_at : $now;
+
+        $prevSprint = Sprint::query()
+            ->where('starts_at', '<', $sprintStart)
+            ->orderByDesc('starts_at')
+            ->first();
+        $prevSprintStart = $prevSprint?->starts_at;
+        $prevSprintEnd = $prevSprint?->ends_at ?? $prevSprintStart;
+
+        $remakeDates = [];
+        foreach ($latest->cards as $row) {
+            if ($row->trello_list_id !== $remakesListId) {
+                continue;
+            }
+
+            $cardId = $row->card?->trello_card_id;
+            $createdAt = $this->trelloIdToDate($cardId);
+            if ($createdAt) {
+                $remakeDates[] = $createdAt;
+            }
+        }
+
+        $stats['total'] = count($remakeDates);
+        $stats['today'] = $this->countBetween($remakeDates, $todayStart, $todayEnd);
+        $stats['prev_today'] = $this->countBetween($remakeDates, $yesterdayStart, $yesterdayEnd);
+        $stats['month'] = $this->countBetween($remakeDates, $monthStart, $monthEnd);
+        $stats['prev_month'] = $this->countBetween($remakeDates, $lastMonthStart, $lastMonthEnd);
+        $stats['sprint'] = $this->countBetween($remakeDates, $sprintStart, $sprintEnd);
+        $stats['prev_sprint'] = $prevSprintStart && $prevSprintEnd
+            ? $this->countBetween($remakeDates, $prevSprintStart, $prevSprintEnd)
+            : null;
+
+        $stats['trend_today'] = $this->trendLabel($stats['today'], $stats['prev_today']);
+
+        $currentSprintDays = max(1, $sprintStart->diffInDays($sprintEnd) + 1);
+        $currentSprintAvg = $stats['sprint'] / $currentSprintDays;
+
+        $prevSprintAvg = null;
+        if ($prevSprintStart && $prevSprintEnd) {
+            $prevSprintDays = max(1, $prevSprintStart->diffInDays($prevSprintEnd) + 1);
+            $prevSprintAvg = ($stats['prev_sprint'] ?? 0) / $prevSprintDays;
+        }
+        $stats['trend_sprint'] = $prevSprintAvg === null
+            ? 'neutral'
+            : $this->trendLabel($currentSprintAvg, $prevSprintAvg);
+
+        $currentMonthDays = max(1, $monthStart->diffInDays($now) + 1);
+        $currentMonthAvg = $stats['month'] / $currentMonthDays;
+        $prevMonthDays = max(1, $lastMonthStart->daysInMonth);
+        $prevMonthAvg = $stats['prev_month'] / $prevMonthDays;
+        $stats['trend_month'] = $this->trendLabel($currentMonthAvg, $prevMonthAvg);
+
+        return $stats;
+    }
+
+    private function trelloIdToDate(?string $trelloId): ?Carbon
+    {
+        if (!$trelloId || !preg_match('/^[a-f0-9]{24}$/i', $trelloId)) {
+            return null;
+        }
+
+        $tsHex = substr($trelloId, 0, 8);
+        $timestamp = hexdec($tsHex);
+
+        try {
+            return Carbon::createFromTimestamp($timestamp);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @param array<int, Carbon> $dates
+     */
+    private function countBetween(array $dates, Carbon $start, Carbon $end): int
+    {
+        $count = 0;
+        foreach ($dates as $date) {
+            if ($date->betweenIncluded($start, $end)) {
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    private function trendLabel(float|int $current, float|int $previous): string
+    {
+        if ($current > $previous) return 'bad';
+        if ($current < $previous) return 'good';
+        return 'neutral';
     }
 }
