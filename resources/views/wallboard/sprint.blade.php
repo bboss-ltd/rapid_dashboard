@@ -60,30 +60,30 @@
     @endphp
 
     <div class="grid">
-        <div class="card">
-            <div class="k">Line 1</div>
-            <div class="v">PIE</div>
-        </div>
+{{--        <div class="card">--}}
+{{--            <div class="k">Line 1</div>--}}
+{{--            <div class="v">PIE</div>--}}
+{{--        </div>--}}
 
-        <div class="card">
-            <div class="k">Line 2</div>
-            <div class="v">PIE</div>
-        </div>
+{{--        <div class="card">--}}
+{{--            <div class="k">Line 2</div>--}}
+{{--            <div class="v">PIE</div>--}}
+{{--        </div>--}}
 
-        <div class="card">
-            <div class="k">Line 3</div>
-            <div class="v">PIE</div>
-        </div>
+{{--        <div class="card">--}}
+{{--            <div class="k">Line 3</div>--}}
+{{--            <div class="v">PIE</div>--}}
+{{--        </div>--}}
 
-        <div class="card">
-            <div class="k">Line 4</div>
-            <div class="v">PIE</div>
-        </div>
+{{--        <div class="card">--}}
+{{--            <div class="k">Line 4</div>--}}
+{{--            <div class="v">PIE</div>--}}
+{{--        </div>--}}
     </div>
 
     <div class="row">
         <div class="chartCard">
-            <div class="k">Burndown (Remaining points over time)</div>
+            <div class="k">Burndown (Remaining progress over time)</div>
             <div style="margin-top: 10px;">
                 <div id="chartWrap" style="position: relative;">
                     <canvas id="burndown"></canvas>
