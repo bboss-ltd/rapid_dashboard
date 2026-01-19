@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="refresh" content="{{ $refreshSeconds }}">
-    <title>Wallboard — {{ $sprint->name }}</title>
+    <title>Sprint Overview — {{ $sprint->name }}</title>
     <style>
         body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b0f19; color: #e8eefc; }
         .wrap { padding: 32px; }
@@ -22,23 +22,36 @@
         .foot { margin-top: 16px; opacity: .7; font-size: 13px; display:flex; justify-content: space-between; }
         .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.10); font-size: 13px; }
         .warn { background: rgba(255, 180, 0, .14); border-color: rgba(255, 180, 0, .25); }
+        .trendRow { display:flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+        .trendBox { display:flex; flex-direction:column; min-width: 120px; }
+        .trendValue { font-size: 28px; font-weight: 800; letter-spacing: .2px; }
+        .trendLabel { font-size: 12px; opacity: .8; margin-top: 4px; }
+        .trend-good { color: #65d38a; }
+        .trend-bad { color: #ff6b6b; }
+        .trend-neutral { color: #e8eefc; }
     </style>
 </head>
 <body>
 <div class="wrap">
     <div class="top">
         <div>
-            <div class="title">{{ $sprint->name }}</div>
+            <div class="title">Sprint Overview</div>
             <div class="sub">
-                <x-ui.datetime :value="$sprint->starts_at" :format="config('display.datetime')" />
+                <span style="font-weight:600;">Sprint:</span> {{ $sprint->name }}
+            </div>
+            <div class="sub">
+                <x-ui.datetime :value="$sprint->starts_at" :format="config('display.date')" />
                 →
-                <x-ui.datetime :value="$sprint->ends_at" :format="config('display.datetime')" />
+                <x-ui.datetime :value="$sprint->ends_at" :format="config('display.date')" />
                 @if($sprint->closed_at)
                     <span class="badge warn" style="margin-left: 10px;">Closed</span>
                 @else
                     <span class="badge" style="margin-left: 10px;">Open</span>
                 @endif
             </div>
+            @if($sprint->sprint_goal)
+                <div class="sub">Goal: {{ \Illuminate\Support\Str::of($sprint->sprint_goal)->squish()->limit(140) }}</div>
+            @endif
         </div>
 
         <div class="badge">
@@ -50,39 +63,42 @@
 
         $endTotals = $summary['end_totals'] ?? null;
         $hasEnd = $summary['has_end_snapshot'] ?? false;
-
-        // For “live” wallboard, use latest series point if available
-        $liveScope = App\Services\Trello\StoryPointToRelativeSizesConverter::handle($latestPoint['scope_points'] ?? ($endTotals['scope_points'] ?? 0));
-        $liveDone = App\Services\Trello\StoryPointToRelativeSizesConverter::handle($latestPoint['done_points'] ?? ($endTotals['completed_points'] ?? 0));
-        $liveRemaining = App\Services\Trello\StoryPointToRelativeSizesConverter::handle($latestPoint['remaining_points'] ?? ($endTotals['remaining_points'] ?? 0));
+        $latestPointData = $latestPoint ?? [];
 
         $rollover = $summary['rollover'] ?? ['cards_count' => 0, 'points' => 0];
+        $liveRemakes = (int) ($latestPointData['remakes_count'] ?? 0);
+        $remakeStats = $remakeStats ?? ['total' => null, 'today' => 0, 'sprint' => 0, 'month' => 0];
+        $remakeTotal = $remakeStats['total'] ?? $liveRemakes;
     @endphp
 
-    <div class="grid">
-{{--        <div class="card">--}}
-{{--            <div class="k">Line 1</div>--}}
-{{--            <div class="v">PIE</div>--}}
-{{--        </div>--}}
-
-{{--        <div class="card">--}}
-{{--            <div class="k">Line 2</div>--}}
-{{--            <div class="v">PIE</div>--}}
-{{--        </div>--}}
-
-{{--        <div class="card">--}}
-{{--            <div class="k">Line 3</div>--}}
-{{--            <div class="v">PIE</div>--}}
-{{--        </div>--}}
-
-{{--        <div class="card">--}}
-{{--            <div class="k">Line 4</div>--}}
-{{--            <div class="v">PIE</div>--}}
-{{--        </div>--}}
-    </div>
-
     <div class="row">
-        <div class="chartCard">
+        <div style="display:flex; flex-direction:column; gap:16px;">
+            <div class="chartCard">
+                <div class="k">Remakes</div>
+                <div class="v">{{ $remakeTotal ?? 0 }}</div>
+                <div class="small">Cards in Remakes list</div>
+                <div class="trendRow">
+                    @php
+                        $trendToday = $remakeStats['trend_today'] ?? 'neutral';
+                        $trendSprint = $remakeStats['trend_sprint'] ?? 'neutral';
+                        $trendMonth = $remakeStats['trend_month'] ?? 'neutral';
+                    @endphp
+                    <div class="trendBox">
+                        <div class="trendValue trend-{{ $trendToday }}">{{ $remakeStats['today'] ?? 0 }}</div>
+                        <div class="trendLabel">Today vs yesterday</div>
+                    </div>
+                    <div class="trendBox">
+                        <div class="trendValue trend-{{ $trendSprint }}">{{ $remakeStats['sprint'] ?? 0 }}</div>
+                        <div class="trendLabel">Sprint pace</div>
+                    </div>
+                    <div class="trendBox">
+                        <div class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}</div>
+                        <div class="trendLabel">Month pace</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chartCard">
             <div class="k">Burndown (Remaining progress over time)</div>
             <div style="margin-top: 10px;">
                 <div id="chartWrap" style="position: relative;">
@@ -116,6 +132,7 @@
                 </div>
 
             </div>
+        </div>
         </div>
 
 
@@ -189,9 +206,9 @@
 
         const cfg = @json(config('wallboard.burndown', []));
         const display = cfg?.display ?? {};
-        const displayMode = display.mode ?? 'percent'; // 'percent' | 'points'
+        const displayMode = 'percent'; // force percent to avoid showing raw story points
         const percentBasis = display.percent_basis ?? 'current_scope'; // 'current_scope' | 'start_scope'
-        const showRaw = !!(display.show_raw_numbers ?? false);
+        const showRaw = false;
         const pctDecimals = Number(display.percent_decimals ?? 0);
 
         const workingDays = (cfg?.working_days ?? [1,2,3,4,5]); // ISO 1..7
@@ -614,18 +631,6 @@
                 ? '100%'
                 : `${p.scope_points}`;
 
-            const rawBlock = showRaw ? `
-            <div style="margin-top:10px; padding-top:10px; border-top: 1px solid rgba(255,255,255,.12); opacity:.95;">
-                <div style="font-weight:700; margin-bottom:6px;">Raw</div>
-                <div style="display:grid; grid-template-columns: 1fr auto; gap: 6px 12px;">
-                    <div>Remaining</div><div style="font-weight:700;">${p.remaining_points}</div>
-                    <div>Ideal remaining</div><div style="font-weight:700;">${idealP ? Math.round(idealP.remaining_points) : '—'}</div>
-                    <div>Done</div><div>${p.done_points}</div>
-                    <div>Scope</div><div>${p.scope_points}</div>
-                </div>
-            </div>
-        ` : '';
-
             tooltip.innerHTML = `
             <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${dateStr}</div>
             <div style="display:grid; grid-template-columns: 1fr auto; gap: 6px 12px;">
@@ -636,7 +641,6 @@
                 <div>Last snapshot</div><div>${snapStr}</div>
                 <div>Type</div><div>${typeStr}</div>
             </div>
-            ${rawBlock}
         `;
 
             tooltip.style.display = 'block';

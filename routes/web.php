@@ -21,12 +21,10 @@ Route::view('dashboard', 'dashboard')
 require __DIR__.'/settings.php';
 
 /**
- * Public (or separately protected)
+ * Public wallboard (auth disabled for now).
  */
-Route::middleware(['wallboard.access'])->group(function () {
-    Route::get('/wallboard', [WallboardController::class, 'index'])->name('wallboard.index');
-    Route::get('/wallboard/sprints/{sprint}', [WallboardController::class, 'sprint'])->name('wallboard.sprint');
-});
+Route::get('/wallboard', [WallboardController::class, 'index'])->name('wallboard.index');
+Route::get('/wallboard/sprints/{sprint}', [WallboardController::class, 'sprint'])->name('wallboard.sprint');
 
 /**
  * Authenticated admin area

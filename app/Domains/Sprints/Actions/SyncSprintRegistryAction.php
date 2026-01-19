@@ -6,6 +6,7 @@ use App\Models\Sprint;
 use App\Services\Trello\TrelloClient;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 final class SyncSprintRegistryAction
 {
@@ -39,15 +40,41 @@ final class SyncSprintRegistryAction
     {
         $registryBoardId = (string) config('trello_sync.registry_board_id');
         if ($registryBoardId === '') {
-            throw new \RuntimeException('Missing trello_sync.registry_board_id config.');
+            throw new RuntimeException('Missing trello_sync.registry_board_id config.');
         }
 
-        /** @var array<string, string> $cf */
-        $cf = config('trello_sync.sprint_control.control_field_ids', []);
+        /** @var array<string, string> $cfIds */
+        $cfIds = config('trello_sync.sprint_control.control_field_ids', []);
+        /** @var array<string, string> $cfNames */
+        $cfNames = config('trello_sync.sprint_control.control_field_names', []);
+
+        $registryFields = $this->trello->get("/boards/{$registryBoardId}/customFields", []);
+        $fieldIdByName = [];
+        foreach (($registryFields ?? []) as $field) {
+            $name = $field['name'] ?? null;
+            $id = $field['id'] ?? null;
+            if (is_string($name) && $name !== '' && is_string($id) && $id !== '') {
+                $fieldIdByName[Str::lower(trim($name))] = $id;
+            }
+        }
+
+        $cf = [];
+        foreach (['status', 'starts_at', 'ends_at', 'sprint_board', 'done_list_ids'] as $key) {
+            $id = $cfIds[$key] ?? '';
+            if ($id !== '') {
+                $cf[$key] = $id;
+                continue;
+            }
+
+            $name = $cfNames[$key] ?? '';
+            if ($name !== '') {
+                $cf[$key] = $fieldIdByName[Str::lower(trim($name))] ?? '';
+            }
+        }
 
         foreach (['status', 'starts_at', 'ends_at', 'sprint_board'] as $required) {
             if (empty($cf[$required])) {
-                throw new \RuntimeException("Missing trello_sync.sprint_control.control_field_ids.{$required} config.");
+                throw new RuntimeException("Missing registry custom field for {$required}. Set trello_sync.sprint_control.control_field_names.{$required} or trello_sync.sprint_control.control_field_ids.{$required}.");
             }
         }
 
@@ -63,6 +90,7 @@ final class SyncSprintRegistryAction
         $count = 0;
 
         foreach (($cards ?? []) as $card) {
+            $controlCardId = (string) ($card['id'] ?? '');
             $items = $card['customFieldItems'] ?? [];
             $byFieldId = [];
             foreach ($items as $it) {
@@ -103,22 +131,36 @@ final class SyncSprintRegistryAction
                 $doneListIds = $this->parseDoneListIds($raw);
             }
 
-            $closedAt = null;
-            if ($status === 'closed') {
+            $existing = null;
+            if ($controlCardId !== '') {
+                $existing = Sprint::query()->where('trello_registry_card_id', $controlCardId)->first();
+            }
+            if (!$existing && $sprintBoardIdOrShortLink) {
+                $existing = Sprint::query()->where('trello_board_id', $sprintBoardIdOrShortLink)->first();
+            }
+
+            $closedAt = $existing?->closed_at;
+            if ($status === 'closed' && !$closedAt) {
                 $closedAt = $endsAt ?? now();
             }
 
-            Sprint::updateOrCreate(
-                ['trello_control_card_id' => (string) ($card['id'] ?? '')],
-                [
-                    'name' => (string) ($card['name'] ?? ('Sprint ' . Str::upper(Str::random(4)))),
-                    'starts_at' => $startsAt,
-                    'ends_at' => $endsAt,
-                    'closed_at' => $closedAt,
-                    'trello_board_id' => $sprintBoardIdOrShortLink,
-                    'done_list_ids' => $doneListIds ?: null,
-                ]
-            );
+            $data = [
+                'name' => (string) ($card['name'] ?? ('Sprint ' . Str::upper(Str::random(4)))),
+                'status' => $status,
+                'starts_at' => $startsAt,
+                'ends_at' => $endsAt,
+                'closed_at' => $closedAt,
+                'trello_board_id' => $sprintBoardIdOrShortLink,
+                'done_list_ids' => $doneListIds ?: null,
+                'trello_registry_card_id' => $controlCardId,
+            ];
+
+            if ($existing) {
+                $existing->fill($data);
+                $existing->save();
+            } else {
+                Sprint::create($data);
+            }
 
             $count++;
         }
