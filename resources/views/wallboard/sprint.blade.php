@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="refresh" content="{{ $refreshSeconds }}">
-    <title>Sprint Overview — {{ $sprint->name }}</title>
+    <title>Sprint Overview</title>
     <style>
         body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b0f19; color: #e8eefc; }
         .wrap { padding: 32px; }
@@ -16,16 +16,19 @@
         .k { opacity: .75; font-size: 14px; }
         .v { font-size: 40px; font-weight: 800; margin-top: 8px; }
         .small { font-size: 22px; font-weight: 700; margin-top: 10px; opacity: .95; }
+        .cardHeader { display:flex; align-items:flex-start; justify-content:space-between; gap: 12px; }
+        .cardTitle { font-weight: 700; font-size: 16px; }
+        .cardSub { font-size: 12px; opacity: .8; margin-top: 4px; }
+        .cardAction { align-self:flex-start; }
         .row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px; }
         .chartCard { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 18px; padding: 18px; }
         canvas { width: 100%; height: 360px; }
         .foot { margin-top: 16px; opacity: .7; font-size: 13px; display:flex; justify-content: space-between; }
         .badge { display:inline-block; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.10); font-size: 13px; }
         .warn { background: rgba(255, 180, 0, .14); border-color: rgba(255, 180, 0, .25); }
-        .trendRow { display:flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
-        .trendBox { display:flex; flex-direction:column; min-width: 120px; }
-        .trendValue { font-size: 28px; font-weight: 800; letter-spacing: .2px; }
-        .trendLabel { font-size: 12px; opacity: .8; margin-top: 4px; }
+        .trendInline { display:flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+        .trendValue { font-size: 22px; font-weight: 800; letter-spacing: .2px; }
+        .trendLabel { font-size: 12px; opacity: .8; margin-left: 6px; }
         .trend-good { color: #65d38a; }
         .trend-bad { color: #ff6b6b; }
         .trend-neutral { color: #e8eefc; }
@@ -37,9 +40,6 @@
         <div>
             <div class="title">Sprint Overview</div>
             <div class="sub">
-                <span style="font-weight:600;">Sprint:</span> {{ $sprint->name }}
-            </div>
-            <div class="sub">
                 <x-ui.datetime :value="$sprint->starts_at" :format="config('display.date')" />
                 →
                 <x-ui.datetime :value="$sprint->ends_at" :format="config('display.date')" />
@@ -49,9 +49,6 @@
                     <span class="badge" style="margin-left: 10px;">Open</span>
                 @endif
             </div>
-            @if($sprint->sprint_goal)
-                <div class="sub">Goal: {{ \Illuminate\Support\Str::of($sprint->sprint_goal)->squish()->limit(140) }}</div>
-            @endif
         </div>
 
         <div class="badge">
@@ -74,32 +71,43 @@
     <div class="row">
         <div style="display:flex; flex-direction:column; gap:16px;">
             <div class="chartCard">
-                <div class="k">Remakes</div>
-                <div class="v">{{ $remakeTotal ?? 0 }}</div>
-                <div class="small">Cards in Remakes list</div>
-                <div class="trendRow">
+                <div class="cardHeader">
+                    <div>
+                        <div class="cardTitle">Remakes</div>
+                        <div class="cardSub">Cards in Remakes list</div>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top: 8px;">
+                    <div class="v">{{ $remakeTotal ?? 0 }}</div>
                     @php
                         $trendToday = $remakeStats['trend_today'] ?? 'neutral';
                         $trendSprint = $remakeStats['trend_sprint'] ?? 'neutral';
                         $trendMonth = $remakeStats['trend_month'] ?? 'neutral';
                     @endphp
-                    <div class="trendBox">
-                        <div class="trendValue trend-{{ $trendToday }}">{{ $remakeStats['today'] ?? 0 }}</div>
-                        <div class="trendLabel">Today vs yesterday</div>
-                    </div>
-                    <div class="trendBox">
-                        <div class="trendValue trend-{{ $trendSprint }}">{{ $remakeStats['sprint'] ?? 0 }}</div>
-                        <div class="trendLabel">Sprint pace</div>
-                    </div>
-                    <div class="trendBox">
-                        <div class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}</div>
-                        <div class="trendLabel">Month pace</div>
+                    <div class="trendInline" style="justify-content:flex-end;">
+                        <div>
+                            <span class="trendValue trend-{{ $trendToday }}">{{ $remakeStats['today'] ?? 0 }}</span>
+                            <span class="trendLabel">Today vs yesterday</span>
+                        </div>
+                        <div>
+                            <span class="trendValue trend-{{ $trendSprint }}">{{ $remakeStats['sprint'] ?? 0 }}</span>
+                            <span class="trendLabel">Sprint pace</span>
+                        </div>
+                        <div>
+                            <span class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}</span>
+                            <span class="trendLabel">Month pace</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div class="chartCard">
-            <div class="k">Burndown (Remaining progress over time)</div>
+            <div class="cardHeader">
+                <div>
+                    <div class="cardTitle">Burndown</div>
+                    <div class="cardSub">Remaining progress over time</div>
+                </div>
+            </div>
             <div style="margin-top: 10px;">
                 <div id="chartWrap" style="position: relative;">
                     <canvas id="burndown"></canvas>
@@ -124,13 +132,8 @@
             </div>
             <div class="foot">
                 <div>
-                    Showing snapshot types:
-                    <span class="badge">{{ implode(', ', request('types') ? explode(',', request('types')) : ['ad_hoc','end']) }}</span>
-                </div>
-                <div>
                     Based on snapshots; historical view stays consistent over time.
                 </div>
-
             </div>
         </div>
         </div>
@@ -154,20 +157,21 @@
 {{--                </div>--}}
 {{--            </div>--}}
 
-            <div class="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
-                <div class="flex items-start justify-between gap-3">
+            <div class="chartCard">
+                <div class="cardHeader">
                     <div>
-                        <div class="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Sprint progress</div>
-                        <div class="text-xs text-zinc-600 dark:text-zinc-300">Completed vs remaining</div>
+                        <div class="cardTitle">Sprint progress</div>
+                        <div class="cardSub">Completed vs remaining</div>
                     </div>
-
-                    <button id="manualSyncBtn"
-                            class="rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-xs text-zinc-800 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                        Manual re-sync
-                    </button>
+                    <div class="cardAction">
+                        <button id="manualSyncBtn"
+                                style="border:1px solid rgba(255,255,255,.15); background: transparent; color: #e8eefc; padding: 6px 10px; border-radius: 10px; font-size: 12px;">
+                            Manual re-sync
+                        </button>
+                    </div>
                 </div>
 
-                <div class="mt-4" style="position: relative;">
+                <div style="position: relative; margin-top: 12px;">
                     <canvas id="progressDonut" style="width: 100%; height: 220px;"></canvas>
                     <div id="progressLabel" style="
             position:absolute;
@@ -178,18 +182,24 @@
             flex-direction:column;
             pointer-events:none;
         ">
-                        <div id="progressPct" class="text-4xl font-semibold text-zinc-900 dark:text-zinc-100">—%</div>
-                        <div class="text-xs text-zinc-600 dark:text-zinc-300">complete</div>
+                        <div id="progressPct" style="font-size: 34px; font-weight: 800;">—%</div>
+                        <div style="font-size: 12px; opacity: .8;">complete</div>
                     </div>
                 </div>
 
-                <div id="syncStatus" class="mt-3 text-xs text-zinc-600 dark:text-zinc-300"></div>
+                <div id="syncStatus" style="margin-top: 8px; font-size: 12px; opacity: .8;"></div>
             </div>
 
         </div>
 
 
     </div>
+
+    @if($sprint->sprint_goal)
+        <div class="sub" style="margin-top:16px;">
+            Goal: {{ \Illuminate\Support\Str::of($sprint->sprint_goal)->squish()->limit(220) }}
+        </div>
+    @endif
 
 </div>
 
@@ -233,6 +243,7 @@
         // ========= Formatting helpers =========
         const fmtDate = new Intl.DateTimeFormat('en-GB', { year:'numeric', month:'2-digit', day:'2-digit' });
         const fmtDateTime = new Intl.DateTimeFormat('en-GB', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const fmtDay = new Intl.DateTimeFormat('en-GB', { weekday:'short', day:'2-digit', month:'2-digit' });
 
         function toDate(x) {
             if (!x) return null;
@@ -302,7 +313,7 @@
             const endDay = (toDate(sprint.closed_at) ? sprintEnd : (today < sprintEnd ? today : sprintEnd));
 
             const days = [];
-            for (let d = new Date(sprintStart); d <= endDay; d.setDate(d.getDate() + 1)) {
+            for (let d = new Date(sprintStart); d <= sprintEnd; d.setDate(d.getDate() + 1)) {
                 days.push(new Date(d));
             }
 
@@ -317,23 +328,26 @@
                     cursor++;
                 }
 
+                const isFuture = day > endDay;
                 if (last) {
                     daily.push({
                         date: new Date(day),
-                        remaining_points: last.remaining_points,
-                        done_points: last.done_points,
+                        remaining_points: isFuture ? null : last.remaining_points,
+                        done_points: isFuture ? null : last.done_points,
                         scope_points: last.scope_points,
                         last_snapshot_at: last.taken_at,
                         last_snapshot_type: last.type,
+                        is_future: isFuture,
                     });
                 } else {
                     daily.push({
                         date: new Date(day),
-                        remaining_points: 0,
-                        done_points: 0,
+                        remaining_points: null,
+                        done_points: null,
                         scope_points: 0,
                         last_snapshot_at: null,
                         last_snapshot_type: null,
+                        is_future: isFuture,
                     });
                 }
             }
@@ -461,6 +475,20 @@
         function drawGrid() {
             if (!gridEnabled) return;
 
+            if (actual.length > 1) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(120, 170, 255, 0.10)';
+                for (let i = 0; i < actual.length; i++) {
+                    const d = startOfDay(actual[i].date);
+                    if (workingDays.includes(isoDow(d))) continue;
+                    const x1 = xScale(i);
+                    const x2 = xScale(Math.min(i + 1, actual.length - 1));
+                    const width = Math.max(1, x2 - x1);
+                    ctx.fillRect(x1, pad.t, width, h - pad.t - pad.b);
+                }
+                ctx.restore();
+            }
+
             ctx.save();
             ctx.globalAlpha = 0.25;
             ctx.strokeStyle = '#cfe0ff';
@@ -473,6 +501,19 @@
                 ctx.moveTo(pad.l, y);
                 ctx.lineTo(w - pad.r, y);
                 ctx.stroke();
+            }
+
+            if (actual.length > 2) {
+                ctx.save();
+                ctx.globalAlpha = 0.12;
+                for (let i = 0; i < actual.length; i++) {
+                    const x = xScale(i);
+                    ctx.beginPath();
+                    ctx.moveTo(x, pad.t);
+                    ctx.lineTo(x, h - pad.b);
+                    ctx.stroke();
+                }
+                ctx.restore();
             }
 
             if (xWeekLines && actual.length > 2) {
@@ -505,9 +546,9 @@
                 return;
             }
 
-            pad = { l: 50, r: 16, t: 16, b: 32 };
+            pad = { l: 50, r: 16, t: 16, b: 44 };
 
-            const actualYs = actual.map(p => toDisplayY(p));
+            const actualYs = actual.filter(p => p.remaining_points !== null).map(p => toDisplayY(p));
             const idealYs = ideal.map(p => (p ? toIdealDisplayY(p) : null)).filter(v => v !== null);
 
             const rawMax = Math.max(...actualYs, ...(idealYs.length ? idealYs : [0]), 1);
@@ -568,16 +609,22 @@
                 ctx.restore();
             }
 
-            // Actual line
+            // Actual line (only through current progress)
             ctx.save();
             ctx.strokeStyle = '#7fb2ff';
             ctx.lineWidth = 3;
             ctx.beginPath();
+            let started = false;
             actual.forEach((p, i) => {
+                if (p.remaining_points === null) return;
                 const x = xScale(i);
                 const y = yScale(toDisplayY(p));
-                if (i === 0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
+                if (!started) {
+                    ctx.moveTo(x, y);
+                    started = true;
+                } else {
+                    ctx.lineTo(x, y);
+                }
             });
             ctx.stroke();
             ctx.restore();
@@ -586,6 +633,7 @@
             pointPixels = [];
             ctx.fillStyle = '#e8eefc';
             actual.forEach((p, i) => {
+                if (p.remaining_points === null) return;
                 const x = xScale(i);
                 const y = yScale(toDisplayY(p));
                 pointPixels.push({ x, y, idx: i });
@@ -594,6 +642,20 @@
                 ctx.arc(x, y, 4, 0, Math.PI * 2);
                 ctx.fill();
             });
+
+            // X-axis day labels
+            if (actual.length > 1) {
+                ctx.save();
+                ctx.fillStyle = 'rgba(232, 238, 252, 0.7)';
+                ctx.font = '11px system-ui';
+                const skip = actual.length > 24 ? 3 : (actual.length > 12 ? 2 : 1);
+                for (let i = 0; i < actual.length; i += skip) {
+                    const x = xScale(i);
+                    const label = fmtDay.format(actual[i].date);
+                    ctx.fillText(label, x - 18, h - 8);
+                }
+                ctx.restore();
+            }
         }
 
         // ========= Tooltip =========
@@ -601,6 +663,7 @@
             if (!tooltipEnabled || !tooltip) return;
 
             const p = actual[i];
+            if (!p || p.remaining_points === null) return;
             const idealP = ideal[i] ?? null;
 
             const dateStr = fmtDate.format(p.date);
