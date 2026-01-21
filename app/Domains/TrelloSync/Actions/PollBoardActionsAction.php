@@ -10,7 +10,10 @@ use Illuminate\Support\Carbon;
 
 final class PollBoardActionsAction
 {
-    public function __construct(private TrelloClient $trello) {}
+    public function __construct(
+        private TrelloClient $trello,
+        private ApplyRemakeLabelActionsAction $applyRemakeLabels,
+    ) {}
 
     public function run(Sprint $sprint): void
     {
@@ -41,6 +44,7 @@ final class PollBoardActionsAction
             $cursor->save();
             $sprint->last_polled_at = now();
             $sprint->save();
+            $this->applyRemakeLabels->run($sprint);
             return;
         }
 
@@ -72,5 +76,7 @@ final class PollBoardActionsAction
 
         $sprint->last_polled_at = now();
         $sprint->save();
+
+        $this->applyRemakeLabels->run($sprint);
     }
 }

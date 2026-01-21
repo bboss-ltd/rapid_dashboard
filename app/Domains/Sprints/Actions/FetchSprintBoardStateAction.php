@@ -26,6 +26,7 @@ final class FetchSprintBoardStateAction
      *     last_activity_at: \DateTimeInterface|null,
      *     estimate_points: int|null,
      *     estimation_label: string|null,
+     *     labels: array<int, string>,
      *     is_done: bool
      *   }>
      * }
@@ -63,6 +64,10 @@ final class FetchSprintBoardStateAction
 
             $points = $this->pointsResolver->pointsForLabel($label);
 
+            $labels = array_values(array_filter(array_map(function ($label) {
+                return $label['name'] ?? null;
+            }, $c['labels'] ?? [])));
+
             $out[] = [
                 'trello_card_id' => $trelloCardId,
                 'name' => $c['name'] ?? '(no name)',
@@ -70,6 +75,7 @@ final class FetchSprintBoardStateAction
                 'last_activity_at' => isset($c['dateLastActivity']) ? Carbon::parse($c['dateLastActivity']) : null,
                 'estimate_points' => $points,
                 'estimation_label' => $label,
+                'labels' => $labels,
                 'is_done' => $isDone,
             ];
         }

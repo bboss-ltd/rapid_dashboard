@@ -14,7 +14,7 @@ class TrelloSprintBoardReader
     public function fetchCards(string $boardId): array
     {
         return $this->trello->get("/boards/{$boardId}/cards", [
-            'fields' => 'name,idList,dateLastActivity',
+            'fields' => 'name,idList,dateLastActivity,labels',
             'customFieldItems' => 'true',
         ]);
     }

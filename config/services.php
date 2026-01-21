@@ -41,4 +41,11 @@ return [
         'token' => env('TRELLO_TOKEN'),
     ],
 
+    'fourjaw' => [
+        'base_url' => env('FOURJAW_BASE_URL', 'https://api.fourjaw.com/v2/'),
+        'token' => env('FOURJAW_TOKEN'),
+        'email' => env('FOURJAW_USER_EMAIL', 'email@example.com'),
+        'password' => env('FOURJAW_USER_PASSWORD', 'password'),
+        'remember_me' => env('FOURJAW_REMEMBER_ME', true)
+    ]
 ];
