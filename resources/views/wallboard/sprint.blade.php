@@ -148,6 +148,11 @@
             font-size: 22px;
             font-weight: 800;
             letter-spacing: .2px;
+            margin: auto;
+        }
+
+        .machine.trendValue {
+            margin-left: 0;
         }
 
         .trendMeta {

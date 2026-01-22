@@ -47,7 +47,7 @@
                 $loadColor = $loadColorFor($m);
             @endphp
             <div class="trendItem">
-                <div class="trendValue">
+                <div class="machine trendValue">
                     <span style="color: {{ $statusColor }};">{{ ucfirst($m['status']) }}</span>
                     @if($m['load_pct'] !== null)
                         <span> • </span>
