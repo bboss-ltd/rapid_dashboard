@@ -5,10 +5,6 @@
         </div>
     </div>
     <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top:auto;">
-        <div>
-            <div class="v" style="font-weight: 900;">{{ $remakeTotal ?? 0 }}</div>
-            <div class="trendTop" style="font-weight: 800;">Current remakes in list</div>
-        </div>
         @php
             $trendToday = $remakeStats['trend_today'] ?? 'neutral';
             $trendSprint = $remakeStats['trend_sprint'] ?? 'neutral';
@@ -21,7 +17,11 @@
             $acceptedPrevToday = (int) ($remakeStats['accepted_prev_today'] ?? 0);
             $acceptedPct = $requestedToday > 0 ? (int) round(($acceptedToday / $requestedToday) * 100) : 0;
         @endphp
-        <div class="trendInline" style="justify-content:flex-end;">
+        <div class="trendInline" style="justify-content:space-evenly;">
+            <div class="trendItem" title="Remake cards in the Remakes list on trello">
+                <div class="trendValue">{{ $remakeTotal ?? 0 }}</div>
+                <div class="trendMeta">Current remakes in list</div>
+            </div>
             <div class="trendItem" title="Requests vs accepted remakes created today. Percentage is accepted / requested.">
                 <div class="trendValue">{{ $requestedToday }}/{{ $acceptedToday }} ({{ $acceptedPct }}%)</div>
                 <div class="trendMeta">Requested/accepted today</div>
