@@ -30,9 +30,8 @@ Route::get('/wallboard/sprints/{sprint}', [WallboardController::class, 'sprint']
  * Authenticated admin area
  */
 Route::middleware(['auth', 'verified'])->group(function () {
-    // Sprints (index/show only)
-    Route::get('/sprints', [SprintController::class, 'index'])->name('sprints.index');
-    Route::get('/sprints/{sprint}', [SprintController::class, 'show'])->name('sprints.show');
+    // Sprints (index/show/store/update)
+    Route::resource('sprints', SprintController::class)->only(['index', 'show', 'store', 'update']);
 
     // Nested snapshots under sprint (index/show)
     Route::get('/sprints/{sprint}/snapshots', [SprintSnapshotController::class, 'index'])->name('sprints.snapshots.index');
@@ -45,7 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Existing CRUD modules (leave these as resources if you’re using them)
     Route::resource('report-definitions', App\Http\Controllers\ReportDefinitionController::class)->only(['index', 'show']);
-    Route::resource('report-runs', App\Http\Controllers\ReportRunController::class)->except(['create', 'edit', 'update', 'destroy']); // adjust if needed
+    Route::resource('report-runs', App\Http\Controllers\ReportRunController::class)->only(['index', 'create', 'store', 'show']);
     Route::resource('report-schedules', App\Http\Controllers\ReportScheduleController::class);
 
     // If you have a DashboardController module (not the wallboard), keep it here

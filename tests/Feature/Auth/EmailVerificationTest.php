@@ -16,7 +16,7 @@ test('email verification screen can be rendered', function () {
 test('email can be verified', function () {
     $user = User::factory()->unverified()->create();
 
-    Event::$this->faker;
+    Event::fake();
 
     $verificationUrl = URL::temporarySignedRoute(
         'verification.verify',

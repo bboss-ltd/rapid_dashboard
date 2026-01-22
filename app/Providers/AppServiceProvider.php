@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Domains\Estimation\EstimatePointsResolver;
+use App\Domains\Wallboard\Events\WallboardSynced;
+use App\Domains\Wallboard\Listeners\LogWallboardSync;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
@@ -24,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(WallboardSynced::class, LogWallboardSync::class);
+
         Event::listen(CommandStarting::class, function (CommandStarting $event): void {
             Log::info('artisan.command.starting', [
                 'command' => $event->command,

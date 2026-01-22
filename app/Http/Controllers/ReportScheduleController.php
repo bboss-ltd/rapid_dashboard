@@ -31,7 +31,7 @@ class ReportScheduleController extends Controller
 
         $request->session()->flash('reportSchedule.id', $reportSchedule->id);
 
-        return redirect()->route('reportSchedules.index');
+        return redirect()->route('report-schedules.index');
     }
 
     public function show(Request $request, ReportSchedule $reportSchedule): View
@@ -54,13 +54,13 @@ class ReportScheduleController extends Controller
 
         $request->session()->flash('reportSchedule.id', $reportSchedule->id);
 
-        return redirect()->route('reportSchedules.index');
+        return redirect()->route('report-schedules.index');
     }
 
     public function destroy(Request $request, ReportSchedule $reportSchedule): RedirectResponse
     {
         $reportSchedule->delete();
 
-        return redirect()->route('reportSchedules.index');
+        return redirect()->route('report-schedules.index');
     }
 }

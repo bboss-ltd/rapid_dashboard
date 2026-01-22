@@ -30,7 +30,7 @@ class ReportRunController extends Controller
 
         $request->session()->flash('reportRun.id', $reportRun->id);
 
-        return redirect()->route('reportRun.index');
+        return redirect()->route('report-runs.index');
     }
 
     public function show(Request $request, ReportRun $reportRun): View

@@ -2,12 +2,9 @@
 
 namespace App\Http\Controllers\Wallboard;
 
-use App\Domains\Reporting\Queries\BurndownSeriesQuery;
-use App\Domains\Reporting\Queries\SprintSummaryQuery;
-use App\Domains\Sprints\Actions\ReconcileSprintBoardStateAction;
-use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
-use App\Domains\TrelloSync\Actions\PollBoardActionsAction;
-use App\Domains\Wallboard\Repositories\RemakeStatsRepository;
+use App\Domains\Wallboard\Actions\BuildWallboardViewDataAction;
+use App\Domains\Wallboard\Actions\ResolveWallboardSprintAction;
+use App\Domains\Wallboard\Actions\SyncWallboardAction;
 use App\Http\Controllers\Controller;
 use App\Models\Sprint;
 use Illuminate\Http\JsonResponse;
@@ -23,39 +20,15 @@ class WallboardController extends Controller
      * - Else, if there is an open sprint (closed_at null) -> show the most recent
      * - Else, show a simple “no active sprint” page (keeps the TV useful)
      */
-    public function index()
+    public function index(ResolveWallboardSprintAction $resolveSprint)
     {
-        $activeByStatus = Sprint::query()
-            ->where('status', 'active')
-            ->whereNull('closed_at')
-            ->orderByDesc('starts_at')
-            ->get();
+        $resolution = $resolveSprint->run();
 
-        if ($activeByStatus->count() === 1) {
-            return redirect()->route('wallboard.sprint', $activeByStatus->first());
+        if ($resolution['mode'] === 'redirect') {
+            return redirect()->route('wallboard.sprint', $resolution['sprint']);
         }
 
-        $active = Sprint::query()->active()->first();
-
-        if ($active) {
-            return redirect()->route('wallboard.sprint', $active);
-        }
-
-        $open = Sprint::query()
-            ->whereNull('closed_at')
-            ->orderBy('starts_at', 'desc')
-            ->first();
-
-        if ($open) {
-            return redirect()->route('wallboard.sprint', $open);
-        }
-
-        $next = Sprint::query()
-            ->whereNull('closed_at')
-            ->where('starts_at', '>', now())
-            ->orderBy('starts_at')
-            ->take(3)
-            ->get();
+        $next = $resolution['next'] ?? collect();
 
         // Avoid introducing a new Blade view here (keeps patch self-contained).
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -86,9 +59,7 @@ class WallboardController extends Controller
     public function sprint(
         Sprint $sprint,
         Request $request,
-        SprintSummaryQuery $summaryQuery,
-        BurndownSeriesQuery $burndownQuery,
-        RemakeStatsRepository $remakeStats,
+        BuildWallboardViewDataAction $buildViewData,
     )
     {
         // Burndown defaults: ad_hoc + end (end gives a final point if sprint is closed)
@@ -100,22 +71,7 @@ class WallboardController extends Controller
         $types = array_values(array_intersect($types, $allowed));
         if (empty($types)) $types = ['ad_hoc', 'end'];
 
-        $summary = $summaryQuery->run($sprint);
-
-        $series = $burndownQuery->run($sprint, $types);
-        $latestPoint = $series->last();
-        $remakeStatsData = $remakeStats->buildRemakeStats($sprint, $types);
-        $remakeReasonStats = $remakeStats->buildRemakeReasonStats($sprint);
-
-        return view('wallboard.sprint', [
-            'sprint' => $sprint,
-            'summary' => $summary,
-            'series' => $series->values(),
-            'latestPoint' => $latestPoint,
-            'remakeStats' => $remakeStatsData,
-            'remakeReasonStats' => $remakeReasonStats,
-            'refreshSeconds' => 60, // tune for TV
-        ]);
+        return view('wallboard.sprint', $buildViewData->run($sprint, $types));
     }
 
     /**
@@ -127,20 +83,16 @@ class WallboardController extends Controller
      */
     public function sync(
         Sprint $sprint,
-        ReconcileSprintBoardStateAction $reconcile,
-        TakeSprintSnapshotAction $take,
-        PollBoardActionsAction $pollActions
+        SyncWallboardAction $syncWallboard,
     ): JsonResponse
     {
-        $pollActions->run($sprint);
-        $reconcileSnap = $reconcile->run($sprint); // may be null
-        $snap = $take->run($sprint, 'ad_hoc', 'wallboard');
+        $result = $syncWallboard->run($sprint);
 
         return response()->json([
             'ok' => true,
             'message' => 'Sync complete.',
-            'snapshot_id' => $snap->id,
-            'reconcile_snapshot_id' => $reconcileSnap?->id,
+            'snapshot_id' => $result->snapshot->id,
+            'reconcile_snapshot_id' => $result->reconcileSnapshot?->id,
         ]);
     }
 }

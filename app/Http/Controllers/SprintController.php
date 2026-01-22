@@ -2,58 +2,47 @@
 
 namespace App\Http\Controllers;
 
-use App\Domains\Reporting\Queries\BurndownSeriesQuery;
+use App\Domains\Sprints\Actions\CreateSprintAction;
+use App\Domains\Sprints\Actions\GetSprintDetailsAction;
+use App\Domains\Sprints\Actions\SearchSprintsAction;
+use App\Domains\Sprints\Actions\UpdateSprintAction;
+use App\Http\Requests\SprintStoreRequest;
+use App\Http\Requests\SprintUpdateRequest;
 use App\Models\Sprint;
 use Illuminate\Http\Request;
 
 class SprintController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, SearchSprintsAction $searchSprints)
     {
         $status = $request->query('status', 'open'); // open|closed|all
         $search = trim((string) $request->query('q', ''));
 
-        $q = Sprint::query()
-            ->orderByDesc('starts_at')
-            ->withCount('snapshots');
-
-        if ($status === 'open') {
-            $q->whereNull('closed_at');
-        } elseif ($status === 'closed') {
-            $q->whereNotNull('closed_at');
-        }
-
-        if ($search !== '') {
-            $q->where('name', 'like', "%{$search}%");
-        }
-
-        $sprints = $q->paginate(15)->withQueryString();
+        $sprints = $searchSprints->run($status, $search, 15);
 
         return view('sprint.index', compact('sprints', 'status', 'search'));
     }
 
-    public function show(Sprint $sprint, BurndownSeriesQuery $burndown)
+    public function show(Sprint $sprint, GetSprintDetailsAction $details)
     {
-        $snapshots = $sprint->snapshots()
-            ->orderByDesc('taken_at')
-            ->paginate(10);
+        return view('sprint.show', $details->run($sprint));
+    }
 
-        $latest = $sprint->snapshots()->latest('taken_at')->first();
+    public function store(SprintStoreRequest $request, CreateSprintAction $createSprint)
+    {
+        $sprint = $createSprint->run($request->validated());
 
-        $latestCards = $latest
-            ? $latest->cards()->with('card')->orderByDesc('is_done')->paginate(25, ['*'], 'cardsPage')
-            : null;
+        $request->session()->flash('sprint.id', $sprint->id);
 
-        // Use burndown series to get a “live” point (ad_hoc + end)
-        $series = $burndown->run($sprint, ['ad_hoc', 'end']);
-        $latestPoint = $series->last();
+        return redirect()->route('sprints.index');
+    }
 
-        return view('sprint.show', [
-            'sprint' => $sprint,
-            'snapshots' => $snapshots,
-            'latestSnapshot' => $latest,
-            'latestSnapshotCards' => $latestCards,
-            'latestPoint' => $latestPoint,
-        ]);
+    public function update(SprintUpdateRequest $request, Sprint $sprint, UpdateSprintAction $updateSprint)
+    {
+        $updateSprint->run($sprint, $request->validated());
+
+        $request->session()->flash('sprint.id', $sprint->id);
+
+        return redirect()->route('sprints.index');
     }
 }

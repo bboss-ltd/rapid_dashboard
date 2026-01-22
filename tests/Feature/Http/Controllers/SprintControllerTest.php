@@ -3,8 +3,10 @@
 namespace Tests\Feature\Http\Controllers;
 
 use App\Models\Sprint;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use JMac\Testing\Traits\AdditionalAssertions;
 use PHPUnit\Framework\Attributes\Test;
@@ -21,12 +23,14 @@ final class SprintControllerTest extends TestCase
     public function index_displays_view(): void
     {
         $sprints = Sprint::factory()->count(3)->create();
+        $user = User::factory()->create();
 
-        $response = $this->get(route('sprints.index'));
+        $response = $this->actingAs($user)->get(route('sprints.index'));
 
         $response->assertOk();
         $response->assertViewIs('sprint.index');
-        $response->assertViewHas('sprints', $sprints);
+        $response->assertViewHas('sprints');
+        $this->assertInstanceOf(LengthAwarePaginator::class, $response->viewData('sprints'));
     }
 
 
@@ -47,8 +51,9 @@ final class SprintControllerTest extends TestCase
         $trello_board_id = $this->faker->word();
         $starts_at = Carbon::parse($this->faker->dateTime());
         $ends_at = Carbon::parse($this->faker->dateTime());
+        $user = User::factory()->create();
 
-        $response = $this->post(route('sprints.store'), [
+        $response = $this->actingAs($user)->post(route('sprints.store'), [
             'name' => $name,
             'trello_board_id' => $trello_board_id,
             'starts_at' => $starts_at->toDateTimeString(),
@@ -73,8 +78,9 @@ final class SprintControllerTest extends TestCase
     public function show_displays_view(): void
     {
         $sprint = Sprint::factory()->create();
+        $user = User::factory()->create();
 
-        $response = $this->get(route('sprints.show', $sprint));
+        $response = $this->actingAs($user)->get(route('sprints.show', $sprint));
 
         $response->assertOk();
         $response->assertViewIs('sprint.show');
@@ -100,8 +106,9 @@ final class SprintControllerTest extends TestCase
         $trello_board_id = $this->faker->word();
         $starts_at = Carbon::parse($this->faker->dateTime());
         $ends_at = Carbon::parse($this->faker->dateTime());
+        $user = User::factory()->create();
 
-        $response = $this->put(route('sprints.update', $sprint), [
+        $response = $this->actingAs($user)->put(route('sprints.update', $sprint), [
             'name' => $name,
             'trello_board_id' => $trello_board_id,
             'starts_at' => $starts_at->toDateTimeString(),

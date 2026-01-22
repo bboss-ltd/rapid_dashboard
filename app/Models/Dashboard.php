@@ -13,5 +13,5 @@ namespace App\Models;
  */
 class Dashboard extends Sprint
 {
-    // Intentionally empty.
+    protected $table = 'sprints';
 }

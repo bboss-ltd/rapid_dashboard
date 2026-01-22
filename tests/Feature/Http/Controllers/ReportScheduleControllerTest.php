@@ -4,6 +4,7 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Models\ReportDefinition;
 use App\Models\ReportSchedule;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use JMac\Testing\Traits\AdditionalAssertions;
@@ -21,8 +22,9 @@ final class ReportScheduleControllerTest extends TestCase
     public function index_displays_view(): void
     {
         $reportSchedules = ReportSchedule::factory()->count(3)->create();
+        $user = User::factory()->create();
 
-        $response = $this->get(route('report-schedules.index'));
+        $response = $this->actingAs($user)->get(route('report-schedules.index'));
 
         $response->assertOk();
         $response->assertViewIs('reportSchedule.index');
@@ -33,7 +35,8 @@ final class ReportScheduleControllerTest extends TestCase
     #[Test]
     public function create_displays_view(): void
     {
-        $response = $this->get(route('report-schedules.create'));
+        $user = User::factory()->create();
+        $response = $this->actingAs($user)->get(route('report-schedules.create'));
 
         $response->assertOk();
         $response->assertViewIs('reportSchedule.create');
@@ -58,9 +61,10 @@ final class ReportScheduleControllerTest extends TestCase
         $is_enabled = $this->faker->boolean();
         $cron = $this->faker->word();
         $timezone = $this->faker->word();
-        $default_params = $this->faker->;
+        $default_params = json_encode(['source' => 'test']);
+        $user = User::factory()->create();
 
-        $response = $this->post(route('report-schedules.store'), [
+        $response = $this->actingAs($user)->post(route('report-schedules.store'), [
             'report_definition_id' => $report_definition->id,
             'name' => $name,
             'is_enabled' => $is_enabled,
@@ -80,7 +84,7 @@ final class ReportScheduleControllerTest extends TestCase
         $this->assertCount(1, $reportSchedules);
         $reportSchedule = $reportSchedules->first();
 
-        $response->assertRedirect(route('reportSchedules.index'));
+        $response->assertRedirect(route('report-schedules.index'));
         $response->assertSessionHas('reportSchedule.id', $reportSchedule->id);
     }
 
@@ -89,8 +93,9 @@ final class ReportScheduleControllerTest extends TestCase
     public function show_displays_view(): void
     {
         $reportSchedule = ReportSchedule::factory()->create();
+        $user = User::factory()->create();
 
-        $response = $this->get(route('report-schedules.show', $reportSchedule));
+        $response = $this->actingAs($user)->get(route('report-schedules.show', $reportSchedule));
 
         $response->assertOk();
         $response->assertViewIs('reportSchedule.show');
@@ -102,8 +107,9 @@ final class ReportScheduleControllerTest extends TestCase
     public function edit_displays_view(): void
     {
         $reportSchedule = ReportSchedule::factory()->create();
+        $user = User::factory()->create();
 
-        $response = $this->get(route('report-schedules.edit', $reportSchedule));
+        $response = $this->actingAs($user)->get(route('report-schedules.edit', $reportSchedule));
 
         $response->assertOk();
         $response->assertViewIs('reportSchedule.edit');
@@ -130,9 +136,10 @@ final class ReportScheduleControllerTest extends TestCase
         $is_enabled = $this->faker->boolean();
         $cron = $this->faker->word();
         $timezone = $this->faker->word();
-        $default_params = $this->faker->;
+        $default_params = json_encode(['source' => 'test']);
+        $user = User::factory()->create();
 
-        $response = $this->put(route('report-schedules.update', $reportSchedule), [
+        $response = $this->actingAs($user)->put(route('report-schedules.update', $reportSchedule), [
             'report_definition_id' => $report_definition->id,
             'name' => $name,
             'is_enabled' => $is_enabled,
@@ -143,7 +150,7 @@ final class ReportScheduleControllerTest extends TestCase
 
         $reportSchedule->refresh();
 
-        $response->assertRedirect(route('reportSchedules.index'));
+        $response->assertRedirect(route('report-schedules.index'));
         $response->assertSessionHas('reportSchedule.id', $reportSchedule->id);
 
         $this->assertEquals($report_definition->id, $reportSchedule->report_definition_id);
@@ -151,7 +158,7 @@ final class ReportScheduleControllerTest extends TestCase
         $this->assertEquals($is_enabled, $reportSchedule->is_enabled);
         $this->assertEquals($cron, $reportSchedule->cron);
         $this->assertEquals($timezone, $reportSchedule->timezone);
-        $this->assertEquals($default_params, $reportSchedule->default_params);
+        $this->assertEquals(json_decode($default_params, true), $reportSchedule->default_params);
     }
 
 
@@ -159,10 +166,11 @@ final class ReportScheduleControllerTest extends TestCase
     public function destroy_deletes_and_redirects(): void
     {
         $reportSchedule = ReportSchedule::factory()->create();
+        $user = User::factory()->create();
 
-        $response = $this->delete(route('report-schedules.destroy', $reportSchedule));
+        $response = $this->actingAs($user)->delete(route('report-schedules.destroy', $reportSchedule));
 
-        $response->assertRedirect(route('reportSchedules.index'));
+        $response->assertRedirect(route('report-schedules.index'));
 
         $this->assertModelMissing($reportSchedule);
     }
