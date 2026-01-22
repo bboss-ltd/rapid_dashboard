@@ -40,12 +40,25 @@ final class VelocityBySprintQuery
             ->get()
             ->keyBy('sprint_id');
 
+        $remakeAgg = DB::table('sprint_remakes')
+            ->whereNull('removed_at')
+            ->groupBy('sprint_id')
+            ->select('sprint_id')
+            ->selectRaw('
+                COUNT(*) as remake_cards_count,
+                COALESCE(SUM(COALESCE(estimate_points,0)),0) as remake_points_raw,
+                COALESCE(SUM(COALESCE(label_points, estimate_points, 0)),0) as remake_points_adjusted
+            ')
+            ->get()
+            ->keyBy('sprint_id');
+
         $sprints = Sprint::query()
             ->orderBy('starts_at')
             ->get();
 
-        return $sprints->map(function (Sprint $sprint) use ($endSnapshotIds) {
+        return $sprints->map(function (Sprint $sprint) use ($endSnapshotIds, $remakeAgg) {
             $end = $endSnapshotIds->get($sprint->id);
+            $remakeRow = $remakeAgg->get($sprint->id);
             if (!$end) {
                 return [
                     'sprint_id' => $sprint->id,
@@ -56,6 +69,9 @@ final class VelocityBySprintQuery
                     'completed_points' => 0,
                     'scope_points' => 0,
                     'remaining_points' => 0,
+                    'remake_cards_count' => (int) ($remakeRow->remake_cards_count ?? 0),
+                    'remake_points_raw' => (int) ($remakeRow->remake_points_raw ?? 0),
+                    'remake_points_adjusted' => (int) ($remakeRow->remake_points_adjusted ?? 0),
                 ];
             }
 
@@ -79,6 +95,9 @@ final class VelocityBySprintQuery
                 'completed_points' => $done,
                 'scope_points' => $scope,
                 'remaining_points' => max(0, $scope - $done),
+                'remake_cards_count' => (int) ($remakeRow->remake_cards_count ?? 0),
+                'remake_points_raw' => (int) ($remakeRow->remake_points_raw ?? 0),
+                'remake_points_adjusted' => (int) ($remakeRow->remake_points_adjusted ?? 0),
             ];
         });
     }

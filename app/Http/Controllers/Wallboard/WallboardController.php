@@ -6,9 +6,11 @@ use App\Domains\Reporting\Queries\BurndownSeriesQuery;
 use App\Domains\Reporting\Queries\SprintSummaryQuery;
 use App\Domains\Sprints\Actions\ReconcileSprintBoardStateAction;
 use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
+use App\Domains\TrelloSync\Actions\PollBoardActionsAction;
 use App\Http\Controllers\Controller;
 use App\Models\Sprint;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -98,6 +100,7 @@ class WallboardController extends Controller
         $series = $burndownQuery->run($sprint, $types);
         $latestPoint = $series->last();
         $remakeStats = $this->buildRemakeStats($sprint, $types);
+        $remakeReasonStats = $this->buildRemakeReasonStats($sprint);
 
         return view('wallboard.sprint', [
             'sprint' => $sprint,
@@ -105,6 +108,7 @@ class WallboardController extends Controller
             'series' => $series->values(),
             'latestPoint' => $latestPoint,
             'remakeStats' => $remakeStats,
+            'remakeReasonStats' => $remakeReasonStats,
             'refreshSeconds' => 60, // tune for TV
         ]);
     }
@@ -116,8 +120,14 @@ class WallboardController extends Controller
      * - Reconcile drift (creates a reconcile snapshot only if needed)
      * - Take an ad_hoc snapshot so the burndown updates immediately
      */
-    public function sync(Sprint $sprint, ReconcileSprintBoardStateAction $reconcile, TakeSprintSnapshotAction $take): JsonResponse
+    public function sync(
+        Sprint $sprint,
+        ReconcileSprintBoardStateAction $reconcile,
+        TakeSprintSnapshotAction $take,
+        PollBoardActionsAction $pollActions
+    ): JsonResponse
     {
+        $pollActions->run($sprint);
         $reconcileSnap = $reconcile->run($sprint); // may be null
         $snap = $take->run($sprint, 'ad_hoc', 'wallboard');
 
@@ -183,27 +193,25 @@ class WallboardController extends Controller
         $prevSprintStart = $prevSprint?->starts_at;
         $prevSprintEnd = $prevSprint?->ends_at ?? $prevSprintStart;
 
-        $remakeDates = [];
+        $currentRemakes = 0;
         foreach ($latest->cards as $row) {
             if ($row->trello_list_id !== $remakesListId) {
                 continue;
             }
-
-            $cardId = $row->card?->trello_card_id;
-            $createdAt = $this->trelloIdToDate($cardId);
-            if ($createdAt) {
-                $remakeDates[] = $createdAt;
-            }
+            $currentRemakes++;
         }
 
-        $stats['total'] = count($remakeDates);
+        $remakeDates = $this->remakeDatesForSprint($sprint);
+
+        $stats['total'] = $currentRemakes;
         $stats['today'] = $this->countBetween($remakeDates, $todayStart, $todayEnd);
         $stats['prev_today'] = $this->countBetween($remakeDates, $yesterdayStart, $yesterdayEnd);
         $stats['month'] = $this->countBetween($remakeDates, $monthStart, $monthEnd);
         $stats['prev_month'] = $this->countBetween($remakeDates, $lastMonthStart, $lastMonthEnd);
         $stats['sprint'] = $this->countBetween($remakeDates, $sprintStart, $sprintEnd);
+        $prevRemakeDates = $prevSprint ? $this->remakeDatesForSprint($prevSprint) : [];
         $stats['prev_sprint'] = $prevSprintStart && $prevSprintEnd
-            ? $this->countBetween($remakeDates, $prevSprintStart, $prevSprintEnd)
+            ? $this->countBetween($prevRemakeDates, $prevSprintStart, $prevSprintEnd)
             : null;
 
         $stats['trend_today'] = $this->trendLabel($stats['today'], $stats['prev_today']);
@@ -229,20 +237,73 @@ class WallboardController extends Controller
         return $stats;
     }
 
-    private function trelloIdToDate(?string $trelloId): ?Carbon
+    private function buildRemakeReasonStats(Sprint $sprint): array
     {
-        if (!$trelloId || !preg_match('/^[a-f0-9]{24}$/i', $trelloId)) {
-            return null;
+        $labels = config('trello_sync.remake_reason_labels', []);
+        $labelKeys = array_map(fn($l) => mb_strtolower(trim((string) $l)), $labels);
+
+        $rows = DB::table('sprint_remakes')
+            ->where('sprint_id', $sprint->id)
+            ->whereNull('removed_at')
+            ->where(function ($q) {
+                $q->whereNull('label_points')
+                    ->orWhere('label_points', '>', 0);
+            })
+            ->selectRaw('COALESCE(reason_label, "") as reason_label, COUNT(*) as total')
+            ->groupBy('reason_label')
+            ->get();
+
+        $counts = [];
+        foreach ($labels as $label) {
+            $counts[$label] = 0;
         }
 
-        $tsHex = substr($trelloId, 0, 8);
-        $timestamp = hexdec($tsHex);
+        $unlabeled = 0;
+        $other = 0;
 
-        try {
-            return Carbon::createFromTimestamp($timestamp);
-        } catch (\Throwable) {
-            return null;
+        foreach ($rows as $row) {
+            $reason = trim((string) ($row->reason_label ?? ''));
+            $count = (int) ($row->total ?? 0);
+            if ($reason === '') {
+                $unlabeled += $count;
+                continue;
+            }
+
+            $key = mb_strtolower($reason);
+            $idx = array_search($key, $labelKeys, true);
+            if ($idx !== false) {
+                $label = $labels[$idx];
+                $counts[$label] = ($counts[$label] ?? 0) + $count;
+            } else {
+                $other += $count;
+            }
         }
+
+        if ($unlabeled > 0) {
+            $counts['Unlabeled'] = $unlabeled;
+        }
+        if ($other > 0) {
+            $counts['Other'] = $other;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @return array<int, Carbon>
+     */
+    private function remakeDatesForSprint(Sprint $sprint): array
+    {
+        return DB::table('sprint_remakes')
+            ->where('sprint_id', $sprint->id)
+            ->whereNull('removed_at')
+            ->where(function ($q) {
+                $q->whereNull('label_points')
+                    ->orWhere('label_points', '>', 0);
+            })
+            ->pluck('first_seen_at')
+            ->map(fn($dt) => Carbon::parse($dt))
+            ->all();
     }
 
     /**

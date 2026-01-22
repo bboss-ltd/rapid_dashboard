@@ -20,16 +20,19 @@ class SprintVelocityController extends Controller
 
         return response()->streamDownload(function () use ($rows) {
             $out = fopen('php://output', 'w');
-            fputcsv($out, [
-                'sprint_id',
-                'sprint_name',
-                'starts_at',
-                'ends_at',
-                'closed_at',
-                'scope_points',
-                'completed_points',
-                'remaining_points',
-            ]);
+                fputcsv($out, [
+                    'sprint_id',
+                    'sprint_name',
+                    'starts_at',
+                    'ends_at',
+                    'closed_at',
+                    'scope_points',
+                    'completed_points',
+                    'remaining_points',
+                    'remake_cards_count',
+                    'remake_points_raw',
+                    'remake_points_adjusted',
+                ]);
 
             foreach ($rows as $r) {
                 fputcsv($out, [
@@ -41,6 +44,9 @@ class SprintVelocityController extends Controller
                     $r['scope_points'],
                     $r['completed_points'],
                     $r['remaining_points'],
+                    $r['remake_cards_count'],
+                    $r['remake_points_raw'],
+                    $r['remake_points_adjusted'],
                 ]);
             }
 

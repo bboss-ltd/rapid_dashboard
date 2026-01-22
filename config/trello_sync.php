@@ -57,6 +57,37 @@ return [
         'moveCardToBoard',
         'moveCardFromBoard',
         'updateCard:idList', // some Trello types are more specific; keep flexible
+        'addLabelToCard',
+        'removeLabelFromCard',
+    ],
+
+    // Labels that influence remake tracking when added/removed on cards.
+    // Map label name => points override (0 disables points for that remake).
+    'remake_label_actions' => [
+        'remove' => [
+            'RM Cancelled' => 1,
+            'RM Accidental' => 1,
+            'RM Rejected' => 2,
+            'RM Test' => 0,
+            'RM Duplicate' => 0,
+        ],
+        'restore' => [
+            'RM Restored',
+        ],
+    ],
+
+    // Labels used to categorize remake reasons (used in wallboard breakdown).
+    'remake_reason_labels' => [
+        'Wrong size',
+        'Missing',
+        'Not programmed',
+        'Incorrect Quantity',
+        'Incorrect product range',
+        'Frame detail incorrect',
+        'Design change',
+        'Double punched/ no common line cut',
+        'Door/frame holes dont line up',
+        'Incorrect material/ thickness',
     ],
 
     // How many actions to request per poll

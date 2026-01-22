@@ -1,10 +1,8 @@
-@php use Illuminate\Support\Str; @endphp
     <!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="refresh" content="{{ $refreshSeconds }}">
     <title>Sprint Overview</title>
     <style>
         body {
@@ -35,38 +33,6 @@
             opacity: .8;
             margin-top: 8px;
             font-size: 16px;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-top: 24px;
-        }
-
-        .card {
-            background: rgba(255, 255, 255, .06);
-            border: 1px solid rgba(255, 255, 255, .08);
-            border-radius: 18px;
-            padding: 18px;
-        }
-
-        .k {
-            opacity: .75;
-            font-size: 14px;
-        }
-
-        .v {
-            font-size: 40px;
-            font-weight: 800;
-            margin-top: 8px;
-        }
-
-        .small {
-            font-size: 22px;
-            font-weight: 700;
-            margin-top: 10px;
-            opacity: .95;
         }
 
         .cardHeader {
@@ -209,7 +175,6 @@
         $endTotals = $summary['end_totals'] ?? null;
         $hasEnd = $summary['has_end_snapshot'] ?? false;
         $latestPointData = $latestPoint ?? [];
-
         $rollover = $summary['rollover'] ?? ['cards_count' => 0, 'points' => 0];
         $liveRemakes = (int) ($latestPointData['remakes_count'] ?? 0);
         $remakeStats = $remakeStats ?? ['total' => null, 'today' => 0, 'sprint' => 0, 'month' => 0];
@@ -233,6 +198,7 @@
                         $trendSprint = $remakeStats['trend_sprint'] ?? 'neutral';
                         $trendMonth = $remakeStats['trend_month'] ?? 'neutral';
                         $trendIcon = fn($t) => $t === 'bad' ? '▲' : ($t === 'good' ? '▼' : '—');
+                        $hasPrevSprint = ($remakeStats['prev_sprint'] ?? null) !== null;
                     @endphp
                     <div class="trendInline" style="justify-content:flex-end;">
                         <div class="trendItem">
@@ -243,7 +209,10 @@
                             <div class="trendMeta">Today vs yesterday</div>
                         </div>
                         <div class="trendItem">
-                            <div class="trendValue trend-{{ $trendSprint }}">{{ $remakeStats['sprint'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendSprint) }}</span></div>
+                            <div class="trendValue trend-{{ $trendSprint }}">
+                                {{ $hasPrevSprint ? ($remakeStats['sprint'] ?? 0) : '—' }}
+                                <span class="trendArrow">{{ $trendIcon($trendSprint) }}</span>
+                            </div>
                             <div class="trendMeta">Sprint pace</div>
                         </div>
                         <div class="trendItem">
@@ -292,7 +261,7 @@
         </div>
 
 
-        <div class="chartCard">
+        <div style="display:flex; flex-direction:column; gap:16px;">
             {{--            <div class="k">Notes</div>--}}
             {{--            <div style="margin-top: 12px; line-height: 1.5; opacity: .9;">--}}
             {{--                <div>• This page auto-refreshes every {{ $refreshSeconds }}s.</div>--}}
@@ -308,6 +277,21 @@
             {{--                    <a style="color:#a9c5ff; text-decoration:none;" href="/reports/sprints/{{ $sprint->id }}/summary.json">Summary JSON</a>--}}
             {{--                </div>--}}
             {{--            </div>--}}
+
+            <div class="chartCard">
+                <div class="cardHeader">
+                    <div>
+                        <div class="cardTitle">Remake reasons</div>
+                        <div class="cardSub">Share of current remakes</div>
+                    </div>
+                </div>
+
+                <div style="position: relative; margin-top: 12px;">
+                    <canvas id="remakeReasonChart" style="width: 100%; height: 220px;"></canvas>
+                </div>
+
+                <div id="remakeReasonLegend" style="margin-top: 10px; display:flex; flex-wrap:wrap; gap:8px 12px; font-size:12px; opacity:.85;"></div>
+            </div>
 
             <div class="chartCard">
                 <div class="cardHeader">
@@ -347,18 +331,14 @@
 
     </div>
 
-    @if($sprint->sprint_goal)
-        <div class="sub" style="margin-top:16px;">
-            Goal: {{ Str::of($sprint->sprint_goal)->squish()->limit(220) }}
-        </div>
-    @endif
-
 </div>
 
 <script>
     (function () {
         // ========= Inputs from Laravel =========
         const snapshotSeries = @json($series ?? []);
+        const refreshSeconds = Number(@json($refreshSeconds ?? 60));
+        const remakeReasonStats = @json($remakeReasonStats ?? []);
         const sprint = {
             id: @json($sprint->id),
             starts_at: @json(optional($sprint->starts_at)?->toIso8601String()),
@@ -386,6 +366,8 @@
         const tooltip = document.getElementById('chartTooltip');
         const donut = document.getElementById('progressDonut');
         const pctEl = document.getElementById('progressPct');
+        const remakeChart = document.getElementById('remakeReasonChart');
+        const remakeLegend = document.getElementById('remakeReasonLegend');
         const syncBtn = document.getElementById('manualSyncBtn');
         const syncStatus = document.getElementById('syncStatus');
 
@@ -833,7 +815,6 @@
 
             const dateStr = fmtDate.format(p.date);
             const snapStr = p.last_snapshot_at ? fmtDateTime.format(p.last_snapshot_at) : '—';
-            const typeStr = p.last_snapshot_type ?? '—';
 
             const denomForPoint = (displayMode === 'percent')
                 ? (percentBasis === 'start_scope'
@@ -851,23 +832,30 @@
                     : `${Math.round(idealP.remaining_points)}`)
                 : '—';
 
+            const deltaDisp = idealP
+                ? (() => {
+                    const delta = (displayMode === 'percent')
+                        ? (toIdealDisplayY(idealP) - toDisplayY(p))
+                        : (Number(idealP.remaining_points ?? 0) - Number(p.remaining_points ?? 0));
+                    const sign = delta > 0 ? '+' : '';
+                    return displayMode === 'percent'
+                        ? `${sign}${roundPct(delta)}%`
+                        : `${sign}${Math.round(delta)}`;
+                })()
+                : '—';
+
             const doneDisp = (displayMode === 'percent')
                 ? `${roundPct(safePct(Number(p.done_points ?? 0), denomForPoint))}%`
                 : `${p.done_points}`;
-
-            const scopeDisp = (displayMode === 'percent')
-                ? '100%'
-                : `${p.scope_points}`;
 
             tooltip.innerHTML = `
             <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${dateStr}</div>
             <div style="display:grid; grid-template-columns: 1fr auto; gap: 6px 12px;">
                 <div>Remaining</div><div style="font-weight:700;">${actualDisp}</div>
                 <div>Ideal</div><div style="font-weight:700;">${idealDisp}</div>
+                <div>Delta</div><div>${deltaDisp}</div>
                 <div>Done</div><div>${doneDisp}</div>
-                <div>Scope</div><div>${scopeDisp}</div>
                 <div>Last snapshot</div><div>${snapStr}</div>
-                <div>Type</div><div>${typeStr}</div>
             </div>
         `;
 
@@ -909,7 +897,17 @@
             return best.idx;
         }
 
-        window.addEventListener('resize', draw);
+        let latest = null;
+
+        window.addEventListener('resize', () => {
+            draw();
+            drawRemakeReasons();
+            if (latest) {
+                drawDonut(Number(latest.done_points ?? 0), Number(latest.remaining_points ?? 0));
+            } else {
+                drawDonut(0, 0);
+            }
+        });
 
         if (tooltipEnabled) {
             canvas.addEventListener('mousemove', (evt) => {
@@ -962,47 +960,159 @@
             dctx.stroke();
         }
 
+        function drawRemakeReasons() {
+            if (!remakeChart) return;
+            const rctx = remakeChart.getContext('2d');
+            if (!rctx) return;
+
+            const entries = Object.entries(remakeReasonStats || {})
+                .map(([label, count]) => [String(label), Number(count || 0)])
+                .filter(([, count]) => count > 0);
+
+            const total = entries.reduce((sum, [, count]) => sum + count, 0);
+
+            const rect = remakeChart.getBoundingClientRect();
+            remakeChart.width = Math.floor(rect.width * devicePixelRatio);
+            remakeChart.height = Math.floor(rect.height * devicePixelRatio);
+            rctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+            rctx.clearRect(0, 0, rect.width, rect.height);
+
+            if (remakeLegend) {
+                remakeLegend.innerHTML = '';
+            }
+
+            if (total <= 0 || entries.length === 0) {
+                rctx.fillStyle = '#e8eefc';
+                rctx.font = '14px system-ui';
+                rctx.fillText('No remake reasons yet.', 16, 24);
+                return;
+            }
+
+            const colors = [
+                '#7fb2ff',
+                '#65d38a',
+                '#ffb74a',
+                '#ff6b6b',
+                '#b38bff',
+                '#7ad6d6',
+                '#ffd86b',
+                '#c2f970',
+                '#a9c5ff',
+                '#f5a9e1',
+                '#f28f61',
+                '#8dd3ff',
+            ];
+
+            const cx = rect.width / 2;
+            const cy = rect.height / 2;
+            const radius = Math.min(rect.width, rect.height) / 2 - 6;
+            const holeRadius = radius * 0.58;
+
+            let start = -Math.PI / 2;
+            entries.forEach(([label, count], idx) => {
+                const slice = (count / total) * Math.PI * 2;
+                const end = start + slice;
+
+                rctx.beginPath();
+                rctx.moveTo(cx, cy);
+                rctx.fillStyle = colors[idx % colors.length];
+                rctx.arc(cx, cy, radius, start, end);
+                rctx.closePath();
+                rctx.fill();
+
+                if (remakeLegend) {
+                    const item = document.createElement('div');
+                    item.style.display = 'flex';
+                    item.style.alignItems = 'center';
+                    item.style.gap = '6px';
+                    const swatch = document.createElement('span');
+                    swatch.style.width = '10px';
+                    swatch.style.height = '10px';
+                    swatch.style.borderRadius = '999px';
+                    swatch.style.background = colors[idx % colors.length];
+                    const pct = Math.round((count / total) * 100);
+                    const text = document.createElement('span');
+                    text.textContent = `${label} ${pct}%`;
+                    item.appendChild(swatch);
+                    item.appendChild(text);
+                    remakeLegend.appendChild(item);
+                }
+
+                start = end;
+            });
+
+            rctx.beginPath();
+            rctx.fillStyle = '#0b0f19';
+            rctx.arc(cx, cy, holeRadius, 0, Math.PI * 2);
+            rctx.fill();
+        }
+
         // use latest point
-        const latest = [...actual].reverse().find(p => p && p.remaining_points !== null) || null;
+        latest = [...actual].reverse().find(p => p && p.remaining_points !== null) || null;
         if (latest) {
             drawDonut(Number(latest.done_points ?? 0), Number(latest.remaining_points ?? 0));
         } else {
             drawDonut(0, 0);
         }
 
+        drawRemakeReasons();
+
+        let syncInFlight = false;
+
+        async function runSync({showUi = false, reloadOnSuccess = false, reloadOnFail = false} = {}) {
+            if (syncInFlight) return false;
+            syncInFlight = true;
+
+            const prevText = syncBtn?.textContent || 'Manual re-sync';
+            if (showUi && syncBtn) {
+                syncBtn.disabled = true;
+                syncBtn.textContent = 'Syncing…';
+            }
+            if (syncStatus) {
+                syncStatus.textContent = showUi ? 'Requesting sync…' : 'Auto-refresh: syncing…';
+            }
+
+            try {
+                const res = await fetch(@json(route('wallboard.sprint.sync', $sprint)), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': @json(csrf_token()),
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({}),
+                });
+
+                const json = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
+
+                if (syncStatus) syncStatus.textContent = json?.message || 'Sync complete.';
+                if (reloadOnSuccess) setTimeout(() => location.reload(), 700);
+                return true;
+            } catch (e) {
+                if (syncStatus) syncStatus.textContent = `Sync failed: ${e.message}`;
+                if (reloadOnFail) setTimeout(() => location.reload(), 700);
+                return false;
+            } finally {
+                if (showUi && syncBtn) {
+                    syncBtn.disabled = false;
+                    syncBtn.textContent = prevText;
+                }
+                syncInFlight = false;
+            }
+        }
+
         // ========= Manual re-sync =========
         if (syncBtn) {
-            syncBtn.addEventListener('click', async () => {
-                try {
-                    syncBtn.disabled = true;
-                    syncBtn.textContent = 'Syncing…';
-                    if (syncStatus) syncStatus.textContent = 'Requesting sync…';
+            syncBtn.addEventListener('click', () => runSync({showUi: true, reloadOnSuccess: true}));
+        }
 
-                    const res = await fetch(@json(route('wallboard.sprint.sync', $sprint)), {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': @json(csrf_token()),
-                            'Accept': 'application/json',
-                        },
-                        body: JSON.stringify({}),
-                    });
-
-                    const json = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(json?.message || `HTTP ${res.status}`);
-
-                    if (syncStatus) syncStatus.textContent = json?.message || 'Sync complete.';
-                    syncBtn.textContent = 'Manual re-sync';
-
-                    // refresh so charts update
-                    setTimeout(() => location.reload(), 700);
-                } catch (e) {
-                    if (syncStatus) syncStatus.textContent = `Sync failed: ${e.message}`;
-                    syncBtn.textContent = 'Manual re-sync';
-                } finally {
-                    syncBtn.disabled = false;
-                }
-            });
+        // ========= Auto refresh (sync then reload) =========
+        if (refreshSeconds > 0) {
+            setTimeout(() => {
+                runSync({showUi: false, reloadOnSuccess: true, reloadOnFail: true});
+            }, refreshSeconds * 1000);
         }
 
         // ========= Initial draw =========

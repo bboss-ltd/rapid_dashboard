@@ -32,6 +32,7 @@ final class SprintSummaryQuery
 
         $endAgg = $this->aggregateSnapshot($end->id);
         $rolloverAgg = $this->aggregateRollover($end->id);
+        $remakeAgg = $this->aggregateRemakes($sprint->id);
 
         $startAgg = $start ? $this->aggregateSnapshot($start->id) : null;
 
@@ -71,6 +72,11 @@ final class SprintSummaryQuery
             'rollover' => [
                 'cards_count' => $rolloverAgg['cards_count'],
                 'points' => $rolloverAgg['points'],
+            ],
+            'remakes' => [
+                'cards_count' => $remakeAgg['cards_count'],
+                'points_raw' => $remakeAgg['points_raw'],
+                'points_adjusted' => $remakeAgg['points_adjusted'],
             ],
             'start_totals' => $startAgg ? [
                 'scope_points' => $startAgg['scope_points'],
@@ -120,6 +126,25 @@ final class SprintSummaryQuery
         return [
             'cards_count' => (int) ($row->cards_count ?? 0),
             'points' => (int) ($row->points ?? 0),
+        ];
+    }
+
+    private function aggregateRemakes(int $sprintId): array
+    {
+        $row = DB::table('sprint_remakes')
+            ->where('sprint_id', $sprintId)
+            ->whereNull('removed_at')
+            ->selectRaw('
+                COUNT(*) as cards_count,
+                COALESCE(SUM(COALESCE(estimate_points,0)),0) as points_raw,
+                COALESCE(SUM(COALESCE(label_points, estimate_points, 0)),0) as points_adjusted
+            ')
+            ->first();
+
+        return [
+            'cards_count' => (int) ($row->cards_count ?? 0),
+            'points_raw' => (int) ($row->points_raw ?? 0),
+            'points_adjusted' => (int) ($row->points_adjusted ?? 0),
         ];
     }
 

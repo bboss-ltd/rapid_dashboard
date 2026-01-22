@@ -8,6 +8,7 @@ use App\Domains\Sprints\Actions\SyncSprintBoardMetadataAction;
 use App\Domains\Sprints\Actions\SyncSprintRegistryAction;
 use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
 use App\Domains\Sprints\Policies\ShouldReconcileSprintPolicy;
+use App\Domains\TrelloSync\Actions\PollBoardActionsAction;
 use App\Models\Sprint;
 use Illuminate\Console\Command;
 
@@ -37,6 +38,7 @@ class RunDashboard extends Command
         ReconcileSprintBoardStateAction $reconcile,
         TakeSprintSnapshotAction $takeSnapshot,
         ShouldReconcileSprintPolicy $shouldReconcile,
+        PollBoardActionsAction $pollActions,
     ): int {
         $count = $syncRegistry->handle();
         $this->info("Synced {$count} sprint(s) from the registry.");
@@ -53,6 +55,7 @@ class RunDashboard extends Command
         $openSprints = $sprints->whereNull('closed_at');
 
         foreach ($openSprints as $sprint) {
+            $pollActions->run($sprint);
             $syncBoard->run($sprint);
             $detectClose->run($sprint);
         }
