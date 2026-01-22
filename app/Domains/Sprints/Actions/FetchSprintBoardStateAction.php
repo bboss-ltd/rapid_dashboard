@@ -65,7 +65,14 @@ final class FetchSprintBoardStateAction
             $points = $this->pointsResolver->pointsForLabel($label);
 
             $labels = array_values(array_filter(array_map(function ($label) {
-                return $label['name'] ?? null;
+                $name = $label['name'] ?? null;
+                if ($name === null || $name === '') {
+                    return null;
+                }
+                return [
+                    'name' => $name,
+                    'color' => $label['color'] ?? null,
+                ];
             }, $c['labels'] ?? [])));
 
             $out[] = [

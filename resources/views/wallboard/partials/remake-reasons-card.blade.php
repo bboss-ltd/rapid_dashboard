@@ -24,12 +24,34 @@
             const remakeLegend = document.getElementById('remakeReasonLegend');
             if (!remakeChart) return;
 
+            function trelloColorToHex(color) {
+                const map = {
+                    green: '#65d38a',
+                    yellow: '#ffd86b',
+                    orange: '#ffb74a',
+                    red: '#ff6b6b',
+                    purple: '#b38bff',
+                    blue: '#7fb2ff',
+                    sky: '#8dd3ff',
+                    lime: '#c2f970',
+                    pink: '#f5a9e1',
+                    black: '#303642',
+                    gray: '#a9b4c7',
+                };
+                return map[color] ?? null;
+            }
+
             function drawRemakeReasons() {
                 // Render donut slices and legend.
                 const rctx = remakeChart.getContext('2d');
                 if (!rctx) return;
 
-                const entries = Object.entries(W.remakeReasonStats || {})
+                const reasonData = W.remakeReasonStats || {};
+                const counts = reasonData.counts || {};
+                const colorsByLabel = reasonData.colors || {};
+                const otherLabels = reasonData.other_labels || {};
+
+                const entries = Object.entries(counts)
                     .map(([label, count]) => [String(label), Number(count || 0)])
                     .filter(([, count]) => count > 0);
 
@@ -53,7 +75,7 @@
                     return;
                 }
 
-                const colors = [
+                const fallbackColors = [
                     '#7fb2ff',
                     '#65d38a',
                     '#ffb74a',
@@ -78,9 +100,11 @@
                 entries.forEach(([label, count], idx) => {
                     const slice = (count / total) * Math.PI * 2;
                     const end = start + slice;
+                    const trelloColor = trelloColorToHex(colorsByLabel[label] || '');
+                    const color = trelloColor || fallbackColors[idx % fallbackColors.length];
 
                     rctx.beginPath();
-                    rctx.strokeStyle = colors[idx % colors.length];
+                    rctx.strokeStyle = color;
                     rctx.lineWidth = thickness;
                     rctx.lineCap = 'round';
                     rctx.arc(cx, cy, ringRadius, start, end);
@@ -95,10 +119,14 @@
                         swatch.style.width = '10px';
                         swatch.style.height = '10px';
                         swatch.style.borderRadius = '999px';
-                        swatch.style.background = colors[idx % colors.length];
+                        swatch.style.background = color;
                         const pct = Math.round((count / total) * 100);
                         const text = document.createElement('span');
-                        text.textContent = `${label} ${pct}%`;
+                        let suffix = '';
+                        if (label === 'Other' && Object.keys(otherLabels).length > 0) {
+                            suffix = ` (${Object.keys(otherLabels).join(', ')})`;
+                        }
+                        text.textContent = `${label} ${pct}%${suffix}`;
                         item.appendChild(swatch);
                         item.appendChild(text);
                         remakeLegend.appendChild(item);

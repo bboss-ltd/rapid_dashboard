@@ -27,6 +27,7 @@ final class ApplyRemakeLabelActionsAction
         foreach ($actions as $action) {
             $payload = is_array($action->payload) ? $action->payload : [];
             $rawLabel = trim((string) ($payload['data']['label']['name'] ?? ''));
+            $rawColor = trim((string) ($payload['data']['label']['color'] ?? ''));
             $labelName = strtolower($rawLabel);
             $cardId = $payload['data']['card']['id'] ?? null;
             $occurredAt = $action->occurred_at ?? now();
@@ -44,7 +45,7 @@ final class ApplyRemakeLabelActionsAction
 
                 if (in_array($labelName, $reasonLabels, true)) {
                     if ($action->type === 'addLabelToCard') {
-                        $this->applyReasonLabel($sprint, $cardId, $occurredAt, $rawLabel);
+                        $this->applyReasonLabel($sprint, $cardId, $occurredAt, $rawLabel, $rawColor);
                     } elseif ($action->type === 'removeLabelFromCard') {
                         $this->clearReasonLabel($sprint, $cardId, $occurredAt, $rawLabel);
                     }
@@ -133,7 +134,7 @@ final class ApplyRemakeLabelActionsAction
         ]);
     }
 
-    private function applyReasonLabel(Sprint $sprint, string $trelloCardId, Carbon $occurredAt, string $labelName): void
+    private function applyReasonLabel(Sprint $sprint, string $trelloCardId, Carbon $occurredAt, string $labelName, string $labelColor = ''): void
     {
         $card = Card::query()->where('trello_card_id', $trelloCardId)->first();
 
@@ -152,6 +153,7 @@ final class ApplyRemakeLabelActionsAction
         $record->update([
             'card_id' => $record->card_id ?: $card?->id,
             'reason_label' => $labelName,
+            'reason_label_color' => $labelColor !== '' ? $labelColor : $record->reason_label_color,
             'reason_set_at' => $occurredAt,
             'last_seen_at' => $occurredAt,
         ]);
@@ -174,6 +176,7 @@ final class ApplyRemakeLabelActionsAction
 
         $record->update([
             'reason_label' => null,
+            'reason_label_color' => null,
             'reason_set_at' => null,
             'last_seen_at' => $occurredAt,
         ]);

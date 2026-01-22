@@ -18,12 +18,13 @@ class FourJawClient
 
         $this->http = Http::baseUrl($baseUrl)
             ->timeout(15)
+            ->withCookies([
+                'access_token' => $token,
+                ],
+                'rapidaccessltd.fourjaw.app')
             ->retry(3, 250)
             ->acceptJson()
-            ->asJson()
-            ->withQueryParameters([
-                'access_token' => $token,
-            ]);
+            ->asJson();
     }
 
     /**
