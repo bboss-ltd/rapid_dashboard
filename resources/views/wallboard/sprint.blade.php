@@ -57,6 +57,27 @@
             align-self: flex-start;
         }
 
+        .headerAction {
+            margin-left: 10px;
+            border: 1px solid rgba(255, 255, 255, .15);
+            background: transparent;
+            color: #e8eefc;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 13px;
+        }
+
+        .headerMeta {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .headerMetaBadge {
+            opacity: .85;
+        }
+
         .row {
             display: grid;
             grid-template-columns: 2fr 1fr;
@@ -191,7 +212,7 @@
 
 </div>
 
-@include('wallboard.partials.scripts.wallboard')
+@stack('scripts')
 
 </body>
 </html>
