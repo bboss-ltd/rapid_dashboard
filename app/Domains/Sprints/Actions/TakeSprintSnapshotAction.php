@@ -54,11 +54,18 @@ final class TakeSprintSnapshotAction
 
             if ($sprint->remakes_list_id && $c['trello_list_id'] === $sprint->remakes_list_id) {
                 $reasonLabel = null;
+                $reasonColor = null;
                 if (!empty($reasonLabels)) {
-                    $cardLabels = array_map(fn($label) => mb_strtolower(trim((string) $label)), $c['labels'] ?? []);
+                    $cardLabels = array_map(function ($label) {
+                        return mb_strtolower(trim((string) ($label['name'] ?? '')));
+                    }, $c['labels'] ?? []);
                     foreach ($reasonLabels as $idx => $label) {
                         if (in_array($label, $cardLabels, true)) {
                             $reasonLabel = $reasonLabelConfig[$idx] ?? null;
+                            $matchedIdx = array_search($label, $cardLabels, true);
+                            $reasonColor = $matchedIdx !== false
+                                ? ($c['labels'][$matchedIdx]['color'] ?? null)
+                                : null;
                             break;
                         }
                     }
@@ -69,6 +76,7 @@ final class TakeSprintSnapshotAction
                     'card_id' => $card->id,
                     'estimate_points' => $c['estimate_points'] ?? null,
                     'reason_label' => $reasonLabel,
+                    'reason_label_color' => $reasonColor ?? null,
                 ];
             }
         }

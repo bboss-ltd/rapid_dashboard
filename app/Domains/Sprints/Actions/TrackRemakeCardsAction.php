@@ -9,7 +9,7 @@ use Illuminate\Support\Carbon;
 final class TrackRemakeCardsAction
 {
     /**
-     * @param array<int, array{trello_card_id:string, card_id:int|null, estimate_points:int|null, reason_label:string|null}> $remakes
+     * @param array<int, array{trello_card_id:string, card_id:int|null, estimate_points:int|null, reason_label:string|null, reason_label_color:string|null}> $remakes
      */
     public function run(Sprint $sprint, array $remakes, ?Carbon $seenAt = null): void
     {
@@ -47,9 +47,11 @@ final class TrackRemakeCardsAction
             ]);
 
             $reasonLabel = trim((string) ($remake['reason_label'] ?? ''));
+            $reasonColor = trim((string) ($remake['reason_label_color'] ?? ''));
             if ($reasonLabel !== '') {
                 $record->update([
                     'reason_label' => $reasonLabel,
+                    'reason_label_color' => $reasonColor !== '' ? $reasonColor : $record->reason_label_color,
                     'reason_set_at' => $timestamp,
                 ]);
             }

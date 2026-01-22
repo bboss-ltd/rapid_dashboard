@@ -122,7 +122,9 @@ class RemakeStatsRepository
 
     public function buildRemakeReasonStats(Sprint $sprint): array
     {
-        $labels = config('trello_sync.remake_reason_labels', []);
+        $labels = array_values(array_filter(array_map(function ($label) {
+            return $this->normalizeReasonLabelDisplay($label);
+        }, config('trello_sync.remake_reason_labels', []))));
         $labelKeys = array_map(fn($l) => mb_strtolower(trim((string) $l)), $labels);
 
         $rows = DB::table('sprint_remakes')
@@ -137,6 +139,7 @@ class RemakeStatsRepository
             ->get();
 
         $counts = [];
+        $otherLabels = [];
         foreach ($labels as $label) {
             $counts[$label] = 0;
         }
@@ -145,9 +148,9 @@ class RemakeStatsRepository
         $other = 0;
 
         foreach ($rows as $row) {
-            $reason = trim((string) ($row->reason_label ?? ''));
+            $reason = $this->normalizeReasonLabelDisplay($row->reason_label ?? null);
             $count = (int) ($row->total ?? 0);
-            if ($reason === '') {
+            if (!$reason) {
                 $unlabeled += $count;
                 continue;
             }
@@ -159,6 +162,10 @@ class RemakeStatsRepository
                 $counts[$label] = ($counts[$label] ?? 0) + $count;
             } else {
                 $other += $count;
+                $raw = trim((string) ($row->reason_label ?? ''));
+                if ($raw !== '') {
+                    $otherLabels[$raw] = ($otherLabels[$raw] ?? 0) + $count;
+                }
             }
         }
 
@@ -169,7 +176,13 @@ class RemakeStatsRepository
             $counts['Other'] = $other;
         }
 
-        return $counts;
+        $colors = $this->reasonColorsForSprint($sprint);
+
+        return [
+            'counts' => $counts,
+            'colors' => $colors,
+            'other_labels' => $otherLabels,
+        ];
     }
 
     /**
@@ -244,6 +257,18 @@ class RemakeStatsRepository
         return $name === '' ? null : $name;
     }
 
+    private function normalizeReasonLabelDisplay(?string $label): ?string
+    {
+        $name = trim((string) $label);
+        if ($name === '') {
+            return null;
+        }
+        $name = preg_replace('/^rm\\s+/i', '', $name) ?? $name;
+        $name = trim($name);
+
+        return $name === '' ? null : $name;
+    }
+
     /**
      * @param array<int, string> $labels
      * @return array<int, string>
@@ -272,5 +297,29 @@ class RemakeStatsRepository
         if ($current > $previous) return 'bad';
         if ($current < $previous) return 'good';
         return 'neutral';
+    }
+
+    private function reasonColorsForSprint(Sprint $sprint): array
+    {
+        $rows = DB::table('sprint_remakes')
+            ->where('sprint_id', $sprint->id)
+            ->whereNull('removed_at')
+            ->whereNotNull('reason_label')
+            ->whereNotNull('reason_label_color')
+            ->orderByDesc('reason_set_at')
+            ->get(['reason_label', 'reason_label_color', 'reason_set_at']);
+
+        $colors = [];
+        foreach ($rows as $row) {
+            $label = $this->normalizeReasonLabelDisplay($row->reason_label ?? null);
+            if (!$label) {
+                continue;
+            }
+            if (!array_key_exists($label, $colors)) {
+                $colors[$label] = strtolower(trim((string) $row->reason_label_color));
+            }
+        }
+
+        return $colors;
     }
 }

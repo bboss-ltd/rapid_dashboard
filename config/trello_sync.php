@@ -78,16 +78,14 @@ return [
 
     // Labels used to categorize remake reasons (used in wallboard breakdown).
     'remake_reason_labels' => [
-        'Wrong size',
-        'Missing',
-        'Not programmed',
-        'Incorrect Quantity',
-        'Incorrect product range',
-        'Frame detail incorrect',
-        'Design change',
-        'Double punched/ no common line cut',
-        'Door/frame holes dont line up',
-        'Incorrect material/ thickness',
+        'RM Programming Related',
+        'RM Punch',
+        'RM Shakeout',
+        'RM Folding',
+        'RM Welding',
+        'RM Spraying',
+        'RM Assembly',
+        'RM Dispatch'
     ],
 
     // How many actions to request per poll

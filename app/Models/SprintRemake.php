@@ -15,6 +15,7 @@ class SprintRemake extends Model
         'label_points',
         'label_set_at',
         'reason_label',
+        'reason_label_color',
         'reason_set_at',
         'first_seen_at',
         'last_seen_at',

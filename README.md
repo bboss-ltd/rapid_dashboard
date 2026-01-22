@@ -177,6 +177,7 @@ Remake labels can influence both the comparison stats and the reason breakdown:
 - `trello_sync.remake_label_points` provides explicit label => points mapping applied at snapshot time.
 
 When labels are added/removed in Trello, polling picks up the action and updates the local `sprint_remakes` record accordingly.
+If your Trello reason labels are prefixed with `RM `, the wallboard strips that prefix for display, and uses the Trello label color when available.
 
 Example config (trim/rename to match your Trello labels):
 
