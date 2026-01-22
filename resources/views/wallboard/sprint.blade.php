@@ -64,6 +64,18 @@
             margin-top: 16px;
         }
 
+        .topRow {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            align-items: stretch;
+            margin-bottom: 38px;
+        }
+
+        .topRow .chartCard {
+            height: 100%;
+        }
+
         .chartCard {
             background: rgba(255, 255, 255, .06);
             border: 1px solid rgba(255, 255, 255, .08);
@@ -161,6 +173,11 @@
                 @else
                     <span class="badge" style="margin-left: 10px;">Open</span>
                 @endif
+                <button id="manualSyncBtn"
+                        class="badge"
+                        style="margin-left: 10px; border:1px solid rgba(255,255,255,.15); background: transparent; color: #e8eefc; padding: 6px 10px; border-radius: 999px; font-size: 13px;">
+                    Manual re-sync
+                </button>
             </div>
         </div>
 
@@ -183,42 +200,118 @@
 
     <div class="row">
         <div style="display:flex; flex-direction:column; gap:16px;">
-            <div class="chartCard">
-                <div class="cardHeader">
-                    <div>
-                        <div class="cardTitle">Remakes</div>
-                        <div class="cardSub">Cards in Remakes list</div>
+            <div class="topRow">
+                <div class="chartCard" style="display:flex; flex-direction:column;">
+                    <div class="cardHeader">
+                        <div>
+                            <div class="cardTitle">Remakes</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top:auto;">
+                        <div>
+                            <div class="v" style="font-weight: 900;">{{ $remakeTotal ?? 0 }}</div>
+                            <div class="trendTop" style="font-weight: 800;">Current remakes in list</div>
+                        </div>
+                        @php
+                            $trendToday = $remakeStats['trend_today'] ?? 'neutral';
+                            $trendSprint = $remakeStats['trend_sprint'] ?? 'neutral';
+                            $trendMonth = $remakeStats['trend_month'] ?? 'neutral';
+                            $trendIcon = fn($t) => $t === 'bad' ? '▲' : ($t === 'good' ? '▼' : '—');
+                            $hasPrevSprint = ($remakeStats['prev_sprint'] ?? null) !== null;
+                            $requestedToday = (int) ($remakeStats['requested_today'] ?? 0);
+                            $acceptedToday = (int) ($remakeStats['accepted_today'] ?? 0);
+                            $requestedPrevToday = (int) ($remakeStats['requested_prev_today'] ?? 0);
+                            $acceptedPrevToday = (int) ($remakeStats['accepted_prev_today'] ?? 0);
+                            $acceptedPct = $requestedToday > 0 ? (int) round(($acceptedToday / $requestedToday) * 100) : 0;
+                        @endphp
+                        <div class="trendInline" style="justify-content:flex-end;">
+                            <div class="trendItem">
+                                <div class="trendValue">{{ $requestedToday }}/{{ $acceptedToday }} ({{ $acceptedPct }}%)</div>
+                                <div class="trendMeta">Requested/accepted today</div>
+                            </div>
+                            <div class="trendItem">
+                                <div class="trendValue trend-{{ $trendToday }}">
+                                    {{ $requestedToday }}/{{ $acceptedToday }}<span class="trendArrow">{{ $trendIcon($trendToday) }}</span>
+                                </div>
+                                <div class="trendMeta">Today vs yesterday ({{ $requestedPrevToday }}/{{ $acceptedPrevToday }})</div>
+                            </div>
+                            <div class="trendItem">
+                                <div class="trendValue">{{ $remakeStats['sprint'] ?? 0 }}</div>
+                                <div class="trendMeta">Sprint to date</div>
+                            </div>
+                            <div class="trendItem">
+                                <div class="trendValue trend-{{ $trendSprint }}">
+                                    {{ $hasPrevSprint ? ($remakeStats['sprint'] ?? 0) : '—' }}
+                                    <span class="trendArrow">{{ $trendIcon($trendSprint) }}</span>
+                                </div>
+                                <div class="trendMeta">Sprint v last sprint</div>
+                            </div>
+                            <div class="trendItem">
+                                <div class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendMonth) }}</span></div>
+                                <div class="trendMeta">Month pace</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div
-                    style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top: 8px;">
-                    <div class="v">{{ $remakeTotal ?? 0 }}</div>
+                <div class="chartCard" style="display:flex; flex-direction:column;">
+                    <div class="cardHeader">
+                        <div>
+                            <div class="cardTitle">Machines</div>
+                            <div class="cardSub">Demo data</div>
+                        </div>
+                    </div>
                     @php
-                        $trendToday = $remakeStats['trend_today'] ?? 'neutral';
-                        $trendSprint = $remakeStats['trend_sprint'] ?? 'neutral';
-                        $trendMonth = $remakeStats['trend_month'] ?? 'neutral';
-                        $trendIcon = fn($t) => $t === 'bad' ? '▲' : ($t === 'good' ? '▼' : '—');
-                        $hasPrevSprint = ($remakeStats['prev_sprint'] ?? null) !== null;
+                        $machineCfg = config('wallboard.machines', []);
+                        $statusColors = $machineCfg['status_colors'] ?? [];
+                        $idleWarn = (int) ($machineCfg['idle_warning_minutes'] ?? 30);
+                        $idleCrit = (int) ($machineCfg['idle_critical_minutes'] ?? 120);
+                        $loadGoodMin = (int) ($machineCfg['load_good_min'] ?? 50);
+                        $loadWarnMin = (int) ($machineCfg['load_warn_min'] ?? 20);
+                        $loadColors = $machineCfg['load_colors'] ?? [];
+
+                        $machines = [
+                            ['name' => 'Machine A', 'status' => 'running', 'idle_minutes' => 0, 'load_pct' => 42],
+                            ['name' => 'Machine B', 'status' => 'idle', 'idle_minutes' => 15, 'load_pct' => 0],
+                            ['name' => 'Machine C', 'status' => 'running', 'idle_minutes' => 0, 'load_pct' => 68],
+                            ['name' => 'Machine D', 'status' => 'maintenance', 'idle_minutes' => 0, 'load_pct' => null],
+                        ];
+
+                        $statusColorFor = function (array $m) use ($statusColors, $idleWarn, $idleCrit) {
+                            $status = strtolower((string) ($m['status'] ?? 'unknown'));
+                            if ($status === 'idle') {
+                                $idle = (int) ($m['idle_minutes'] ?? 0);
+                                return $idle > $idleCrit
+                                    ? ($statusColors['stopped'] ?? '#ff6b6b')
+                                    : ($statusColors['idle'] ?? '#ffb74a');
+                            }
+                            return $statusColors[$status] ?? ($statusColors['unknown'] ?? '#e8eefc');
+                        };
+
+                        $loadColorFor = function (array $m) use ($loadGoodMin, $loadWarnMin, $loadColors) {
+                            $load = $m['load_pct'];
+                            if ($load === null) return $loadColors['warn'] ?? '#ffb74a';
+                            if ($load >= $loadGoodMin) return $loadColors['good'] ?? '#65d38a';
+                            if ($load >= $loadWarnMin) return $loadColors['warn'] ?? '#ffb74a';
+                            return $loadColors['low'] ?? '#ff6b6b';
+                        };
                     @endphp
-                    <div class="trendInline" style="justify-content:flex-end;">
-                        <div class="trendItem">
-                            <div class="trendTop">Sprint to date: {{ $remakeStats['sprint'] ?? 0 }}</div>
-                        </div>
-                        <div class="trendItem">
-                            <div class="trendValue trend-{{ $trendToday }}">{{ $remakeStats['today'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendToday) }}</span></div>
-                            <div class="trendMeta">Today vs yesterday</div>
-                        </div>
-                        <div class="trendItem">
-                            <div class="trendValue trend-{{ $trendSprint }}">
-                                {{ $hasPrevSprint ? ($remakeStats['sprint'] ?? 0) : '—' }}
-                                <span class="trendArrow">{{ $trendIcon($trendSprint) }}</span>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:auto;">
+                        @foreach($machines as $m)
+                            @php
+                                $statusColor = $statusColorFor($m);
+                                $loadColor = $loadColorFor($m);
+                            @endphp
+                            <div class="trendItem">
+                                <div class="trendValue">
+                                    <span style="color: {{ $statusColor }};">{{ ucfirst($m['status']) }}</span>
+                                    @if($m['load_pct'] !== null)
+                                        <span> • </span>
+                                        <span style="color: {{ $loadColor }};">{{ $m['load_pct'] }}% load</span>
+                                    @endif
+                                </div>
+                                <div class="trendMeta">{{ $m['name'] }}</div>
                             </div>
-                            <div class="trendMeta">Sprint pace</div>
-                        </div>
-                        <div class="trendItem">
-                            <div class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendMonth) }}</span></div>
-                            <div class="trendMeta">Month pace</div>
-                        </div>
+                        @endforeach
                     </div>
                 </div>
             </div>
@@ -298,12 +391,6 @@
                     <div>
                         <div class="cardTitle">Sprint progress</div>
                         <div class="cardSub">Completed vs Remaining</div>
-                    </div>
-                    <div class="cardAction">
-                        <button id="manualSyncBtn"
-                                style="border:1px solid rgba(255,255,255,.15); background: transparent; color: #e8eefc; padding: 6px 10px; border-radius: 10px; font-size: 12px;">
-                            Manual re-sync
-                        </button>
                     </div>
                 </div>
 
@@ -1007,7 +1094,8 @@
             const cx = rect.width / 2;
             const cy = rect.height / 2;
             const radius = Math.min(rect.width, rect.height) / 2 - 6;
-            const holeRadius = radius * 0.58;
+            const thickness = Math.max(14, radius * 0.28);
+            const ringRadius = radius - (thickness / 2);
 
             let start = -Math.PI / 2;
             entries.forEach(([label, count], idx) => {
@@ -1015,11 +1103,11 @@
                 const end = start + slice;
 
                 rctx.beginPath();
-                rctx.moveTo(cx, cy);
-                rctx.fillStyle = colors[idx % colors.length];
-                rctx.arc(cx, cy, radius, start, end);
-                rctx.closePath();
-                rctx.fill();
+                rctx.strokeStyle = colors[idx % colors.length];
+                rctx.lineWidth = thickness;
+                rctx.lineCap = 'round';
+                rctx.arc(cx, cy, ringRadius, start, end);
+                rctx.stroke();
 
                 if (remakeLegend) {
                     const item = document.createElement('div');
@@ -1042,10 +1130,7 @@
                 start = end;
             });
 
-            rctx.beginPath();
-            rctx.fillStyle = '#0b0f19';
-            rctx.arc(cx, cy, holeRadius, 0, Math.PI * 2);
-            rctx.fill();
+            rctx.lineCap = 'butt';
         }
 
         // use latest point

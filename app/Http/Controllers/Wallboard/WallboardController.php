@@ -152,6 +152,10 @@ class WallboardController extends Controller
             'prev_today' => 0,
             'prev_sprint' => null,
             'prev_month' => 0,
+            'requested_today' => 0,
+            'accepted_today' => 0,
+            'requested_prev_today' => 0,
+            'accepted_prev_today' => 0,
             'trend_today' => 'neutral',
             'trend_sprint' => 'neutral',
             'trend_month' => 'neutral',
@@ -194,14 +198,26 @@ class WallboardController extends Controller
         $prevSprintEnd = $prevSprint?->ends_at ?? $prevSprintStart;
 
         $currentRemakes = 0;
+        $currentRemakeCardIds = [];
         foreach ($latest->cards as $row) {
             if ($row->trello_list_id !== $remakesListId) {
                 continue;
             }
             $currentRemakes++;
+            $cardId = $row->card?->trello_card_id;
+            if ($cardId) {
+                $currentRemakeCardIds[] = $cardId;
+            }
         }
 
-        $remakeDates = $this->remakeDatesForSprint($sprint);
+        $removeLabels = $this->normalizeLabelNames(
+            array_keys(config('trello_sync.remake_label_actions.remove', []))
+        );
+        $reasonLabels = $this->normalizeLabelNames(
+            config('trello_sync.remake_reason_labels', [])
+        );
+
+        $remakeDates = $this->remakeDatesForSprint($sprint, $removeLabels);
 
         $stats['total'] = $currentRemakes;
         $stats['today'] = $this->countBetween($remakeDates, $todayStart, $todayEnd);
@@ -209,12 +225,17 @@ class WallboardController extends Controller
         $stats['month'] = $this->countBetween($remakeDates, $monthStart, $monthEnd);
         $stats['prev_month'] = $this->countBetween($remakeDates, $lastMonthStart, $lastMonthEnd);
         $stats['sprint'] = $this->countBetween($remakeDates, $sprintStart, $sprintEnd);
-        $prevRemakeDates = $prevSprint ? $this->remakeDatesForSprint($prevSprint) : [];
+        $prevRemakeDates = $prevSprint ? $this->remakeDatesForSprint($prevSprint, $removeLabels) : [];
         $stats['prev_sprint'] = $prevSprintStart && $prevSprintEnd
             ? $this->countBetween($prevRemakeDates, $prevSprintStart, $prevSprintEnd)
             : null;
 
-        $stats['trend_today'] = $this->trendLabel($stats['today'], $stats['prev_today']);
+        $stats['requested_today'] = $this->requestedCountForDateRange($sprint, $todayStart, $todayEnd, $removeLabels);
+        $stats['requested_prev_today'] = $this->requestedCountForDateRange($sprint, $yesterdayStart, $yesterdayEnd, $removeLabels);
+        $stats['accepted_today'] = $this->acceptedCountForDateRange($sprint, $todayStart, $todayEnd, $reasonLabels);
+        $stats['accepted_prev_today'] = $this->acceptedCountForDateRange($sprint, $yesterdayStart, $yesterdayEnd, $reasonLabels);
+
+        $stats['trend_today'] = $this->trendLabel($stats['requested_today'], $stats['requested_prev_today']);
 
         $currentSprintDays = max(1, $sprintStart->diffInDays($sprintEnd) + 1);
         $currentSprintAvg = $stats['sprint'] / $currentSprintDays;
@@ -292,18 +313,85 @@ class WallboardController extends Controller
     /**
      * @return array<int, Carbon>
      */
-    private function remakeDatesForSprint(Sprint $sprint): array
+    private function remakeDatesForSprint(Sprint $sprint, array $removeLabels = []): array
     {
-        return DB::table('sprint_remakes')
+        $rows = DB::table('sprint_remakes')
             ->where('sprint_id', $sprint->id)
             ->whereNull('removed_at')
-            ->where(function ($q) {
-                $q->whereNull('label_points')
-                    ->orWhere('label_points', '>', 0);
-            })
-            ->pluck('first_seen_at')
-            ->map(fn($dt) => Carbon::parse($dt))
-            ->all();
+            ->select('first_seen_at', 'label_name')
+            ->get();
+
+        $dates = [];
+        foreach ($rows as $row) {
+            $label = $this->normalizeLabelName($row->label_name ?? null);
+            if ($label && in_array($label, $removeLabels, true)) {
+                continue;
+            }
+            $dates[] = Carbon::parse($row->first_seen_at);
+        }
+
+        return $dates;
+    }
+
+    private function requestedCountForDateRange(Sprint $sprint, Carbon $start, Carbon $end, array $removeLabels = []): int
+    {
+        $rows = DB::table('sprint_remakes')
+            ->where('sprint_id', $sprint->id)
+            ->whereBetween('first_seen_at', [$start, $end])
+            ->select('label_name')
+            ->get();
+
+        $count = 0;
+        foreach ($rows as $row) {
+            $label = $this->normalizeLabelName($row->label_name ?? null);
+            if ($label && in_array($label, $removeLabels, true)) {
+                continue;
+            }
+            $count++;
+        }
+
+        return $count;
+    }
+
+    private function acceptedCountForDateRange(Sprint $sprint, Carbon $start, Carbon $end, array $reasonLabels = []): int
+    {
+        if (empty($reasonLabels)) {
+            return 0;
+        }
+
+        $rows = DB::table('sprint_remakes')
+            ->where('sprint_id', $sprint->id)
+            ->whereBetween('first_seen_at', [$start, $end])
+            ->select('reason_label')
+            ->get();
+
+        $count = 0;
+        foreach ($rows as $row) {
+            $label = $this->normalizeLabelName($row->reason_label ?? null);
+            if ($label && in_array($label, $reasonLabels, true)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function normalizeLabelName(?string $label): ?string
+    {
+        $name = mb_strtolower(trim((string) $label));
+        return $name === '' ? null : $name;
+    }
+
+    /**
+     * @param array<int, string> $labels
+     * @return array<int, string>
+     */
+    private function normalizeLabelNames(array $labels): array
+    {
+        return array_values(array_filter(array_map(function ($label) {
+            $name = $this->normalizeLabelName($label);
+            return $name ?? null;
+        }, $labels)));
     }
 
     /**
