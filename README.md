@@ -29,6 +29,10 @@ A Trello-powered sprint wallboard + reporting app. It syncs a Sprint Registry bo
 
 - `http://localhost:8000/wallboard`
 
+6) Build assets for production (optional for local)
+
+- `npm run build`
+
 ## Trello data model
 
 ### Sprint Registry board
@@ -92,6 +96,22 @@ Wallboard shows:
 
 Authentication is currently disabled for the wallboard routes.
 
+## Release/revision badge
+
+The sidebar and wallboard show a revision and published timestamp.
+
+Priority order:
+- `APP_REVISION` (optional)
+- Git HEAD (if `.git` is available)
+
+Published timestamp is resolved from:
+- `APP_RELEASED_AT` (optional)
+- `public/build/manifest.json` mtime
+- `public/index.php` mtime
+- `.git/logs/HEAD` timestamp
+
+Set these in your deploy pipeline if you want explicit values.
+
 ## Config reference
 
 `config/trello_sync.php` keys you may care about:
@@ -110,8 +130,13 @@ Authentication is currently disabled for the wallboard routes.
   - `trello_sync.sprint_board.ends_at_field_name`
   - `trello_sync.sprint_board.status_field_name`
   - `trello_sync.sprint_board.closed_status_label`
-  - `trello_sync.sprint_board.diverged_label_name`
-  - `trello_sync.sprint_board.diverged_label_color`
+- `trello_sync.sprint_board.diverged_label_name`
+- `trello_sync.sprint_board.diverged_label_color`
+- Remakes + labels:
+  - `trello_sync.remake_label_actions.remove` (labels that zero out remake points)
+  - `trello_sync.remake_label_actions.restore` (labels that restore original points)
+  - `trello_sync.remake_reason_labels` (labels used for reason pie chart)
+  - `trello_sync.remake_label_points` (label => points mapping used at snapshot time)
 
 Associated env vars:
 
@@ -133,11 +158,69 @@ Associated env vars:
 - `TRELLO_SPRINT_CLOSED_STATUS_LABEL`
 - `TRELLO_SPRINT_DIVERGED_LABEL_NAME`
 - `TRELLO_SPRINT_DIVERGED_LABEL_COLOR`
+- `APP_REVISION` (optional)
+- `APP_RELEASED_AT` (optional ISO8601)
+- `APP_REVISION` (optional)
+- `APP_RELEASED_AT` (optional ISO8601)
 
 Legacy env vars like `TRELLO_CF_SPRINT_STATUS` are no longer used; prefer the name-based registry field envs above.
 
 Note on `TRELLO_REGISTRY_DONE_LIST_IDS_FIELD_NAME`:
 This is an optional registry-board custom field that lets you override Done list ids per sprint. Use it if a sprint board has multiple Done lists or a non-standard Done column name. If you don't need per-sprint overrides, leave it unset and the system will infer Done lists from `TRELLO_DONE_LIST_NAMES` instead.
+
+## Remakes labels
+
+Remake labels can influence both the comparison stats and the reason breakdown:
+- Labels listed in `trello_sync.remake_label_actions.remove` zero out remake points (e.g., test/accidental).
+- Labels listed in `trello_sync.remake_label_actions.restore` restore original points after removal.
+- Labels listed in `trello_sync.remake_reason_labels` are tracked for the remake reasons pie chart.
+- `trello_sync.remake_label_points` provides explicit label => points mapping applied at snapshot time.
+
+When labels are added/removed in Trello, polling picks up the action and updates the local `sprint_remakes` record accordingly.
+
+Example config (trim/rename to match your Trello labels):
+
+```php
+// config/trello_sync.php
+'remake_label_actions' => [
+    'remove' => [
+        'rm test',
+        'rm accidental',
+        'rm duplicate',
+    ],
+    'restore' => [
+        'rm restore',
+    ],
+],
+'remake_label_points' => [
+    'rm rejected' => 2,
+    'rm investigation' => 1,
+],
+'remake_reason_labels' => [
+    'wrong size',
+    'missing',
+    'not programmed',
+    'incorrect quantity',
+    'incorrect product range',
+    'frame detail incorrect',
+    'design change',
+    'double punched/ no common line cut',
+    'door/frame holes dont line up',
+    'incorrect material/ thickness',
+],
+```
+## Business logic notes
+
+High-level rules applied across the app:
+
+- Sprint selection: prefer exactly one `status=active` + open sprint, otherwise fall back to date window (`starts_at <= now <= ends_at`), otherwise no active sprint.
+- Snapshot flow: ensure a `start` snapshot exists; reconcile drift when policy allows; take periodic `ad_hoc` snapshots at configured cadence.
+- Remakes tracking: cards first seen in the Remakes list are persisted with timestamps; label actions can zero/restore points; reason labels are tracked for the pie chart.
+- Remakes stats: daily requested/accepted counts are based on first seen dates; sprint/month totals exclude “remove” labels.
+- Polling: Trello actions are incrementally ingested using cursors and applied to local records; delete actions mark remakes as removed.
+- Wallboard refresh: syncs and snapshots before reload so totals update on every refresh.
+- Revision badge: resolves revision from `APP_REVISION` or git HEAD; published timestamp from `APP_RELEASED_AT` or build timestamps.
+
 ## Useful commands
 
 - `php artisan trello:run-dashboard` (master command)
@@ -157,6 +240,12 @@ Tables (key ones):
 - `sprint_snapshots` (snapshot events)
 - `sprint_snapshot_cards` (card state per snapshot)
 - `cards` (card cache)
+- `sprint_remakes` (remake tracking)
+- `trello_actions` (label/action polling cache)
+- `board_sync_cursors` (polling cursors)
+- `report_definitions`
+- `report_schedules`
+- `report_runs`
 
 ## Troubleshooting
 
