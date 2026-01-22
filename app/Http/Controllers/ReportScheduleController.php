@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Reporting\Actions\CreateReportScheduleAction;
+use App\Domains\Reporting\Actions\DeleteReportScheduleAction;
+use App\Domains\Reporting\Actions\ListReportSchedulesAction;
+use App\Domains\Reporting\Actions\UpdateReportScheduleAction;
 use App\Http\Requests\ReportScheduleStoreRequest;
 use App\Http\Requests\ReportScheduleUpdateRequest;
 use App\Models\ReportSchedule;
@@ -11,9 +15,9 @@ use Illuminate\View\View;
 
 class ReportScheduleController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, ListReportSchedulesAction $listSchedules): View
     {
-        $reportSchedules = ReportSchedule::all();
+        $reportSchedules = $listSchedules->run();
 
         return view('reportSchedule.index', [
             'reportSchedules' => $reportSchedules,
@@ -25,13 +29,13 @@ class ReportScheduleController extends Controller
         return view('reportSchedule.create');
     }
 
-    public function store(ReportScheduleStoreRequest $request): RedirectResponse
+    public function store(ReportScheduleStoreRequest $request, CreateReportScheduleAction $createSchedule): RedirectResponse
     {
-        $reportSchedule = ReportSchedule::create($request->validated());
+        $reportSchedule = $createSchedule->run($request->validated());
 
         $request->session()->flash('reportSchedule.id', $reportSchedule->id);
 
-        return redirect()->route('reportSchedules.index');
+        return redirect()->route('report-schedules.index');
     }
 
     public function show(Request $request, ReportSchedule $reportSchedule): View
@@ -48,19 +52,19 @@ class ReportScheduleController extends Controller
         ]);
     }
 
-    public function update(ReportScheduleUpdateRequest $request, ReportSchedule $reportSchedule): RedirectResponse
+    public function update(ReportScheduleUpdateRequest $request, ReportSchedule $reportSchedule, UpdateReportScheduleAction $updateSchedule): RedirectResponse
     {
-        $reportSchedule->update($request->validated());
+        $updateSchedule->run($reportSchedule, $request->validated());
 
         $request->session()->flash('reportSchedule.id', $reportSchedule->id);
 
-        return redirect()->route('reportSchedules.index');
+        return redirect()->route('report-schedules.index');
     }
 
-    public function destroy(Request $request, ReportSchedule $reportSchedule): RedirectResponse
+    public function destroy(Request $request, ReportSchedule $reportSchedule, DeleteReportScheduleAction $deleteSchedule): RedirectResponse
     {
-        $reportSchedule->delete();
+        $deleteSchedule->run($reportSchedule);
 
-        return redirect()->route('reportSchedules.index');
+        return redirect()->route('report-schedules.index');
     }
 }

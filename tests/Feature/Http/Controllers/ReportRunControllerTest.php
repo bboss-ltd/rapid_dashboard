@@ -22,8 +22,9 @@ final class ReportRunControllerTest extends TestCase
     public function index_displays_view(): void
     {
         $reportRuns = ReportRun::factory()->count(3)->create();
+        $user = User::factory()->create();
 
-        $response = $this->get(route('report-runs.index'));
+        $response = $this->actingAs($user)->get(route('report-runs.index'));
 
         $response->assertOk();
         $response->assertViewIs('report-run.index');
@@ -34,7 +35,8 @@ final class ReportRunControllerTest extends TestCase
     #[Test]
     public function create_displays_view(): void
     {
-        $response = $this->get(route('report-runs.create'));
+        $user = User::factory()->create();
+        $response = $this->actingAs($user)->get(route('report-runs.create'));
 
         $response->assertOk();
         $response->assertViewIs('report-run.create');
@@ -55,11 +57,11 @@ final class ReportRunControllerTest extends TestCase
     public function store_saves_and_redirects(): void
     {
         $report_definition = ReportDefinition::factory()->create();
-        $status = $this->faker->randomElement(/** enum_attributes **/);
-        $params = $this->faker->;
+        $status = 'queued';
+        $params = json_encode(['source' => 'test']);
         $user = User::factory()->create();
 
-        $response = $this->post(route('report-runs.store'), [
+        $response = $this->actingAs($user)->post(route('report-runs.store'), [
             'report_definition_id' => $report_definition->id,
             'status' => $status,
             'params' => $params,
@@ -75,7 +77,7 @@ final class ReportRunControllerTest extends TestCase
         $this->assertCount(1, $reportRuns);
         $reportRun = $reportRuns->first();
 
-        $response->assertRedirect(route('reportRun.index'));
+        $response->assertRedirect(route('report-runs.index'));
         $response->assertSessionHas('reportRun.id', $reportRun->id);
     }
 
@@ -84,8 +86,9 @@ final class ReportRunControllerTest extends TestCase
     public function show_displays_view(): void
     {
         $reportRun = ReportRun::factory()->create();
+        $user = User::factory()->create();
 
-        $response = $this->get(route('report-runs.show', $reportRun));
+        $response = $this->actingAs($user)->get(route('report-runs.show', $reportRun));
 
         $response->assertOk();
         $response->assertViewIs('report-run.show');

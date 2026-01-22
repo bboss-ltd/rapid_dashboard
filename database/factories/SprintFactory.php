@@ -14,7 +14,7 @@ class SprintFactory extends Factory
         return [
             'name' => $this->faker->name(),
             'status' => $this->faker->randomElement(['planned', 'active', 'closed']),
-            'trello_board_id' => $this->faker->word(),
+            'trello_board_id' => $this->faker->unique()->uuid(),
             'starts_at' => $this->faker->dateTime(),
             'ends_at' => $this->faker->dateTime(),
             'closed_at' => $this->faker->dateTime(),

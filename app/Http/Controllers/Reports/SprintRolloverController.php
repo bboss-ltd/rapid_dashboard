@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Reports;
 
-use App\Domains\Reporting\Queries\RolloverCardsQuery;
+use App\Domains\Reporting\Actions\GetSprintRolloverReportAction;
 use App\Http\Controllers\Controller;
 use App\Models\Sprint;
 
@@ -11,36 +11,18 @@ class SprintRolloverController extends Controller
     /**
      * GET /reports/sprints/{sprint}/rollover.json
      */
-    public function json(Sprint $sprint, RolloverCardsQuery $query)
+    public function json(Sprint $sprint, GetSprintRolloverReportAction $report)
     {
-        // Rollover definition uses END snapshot
-        if ($sprint->snapshots()->where('type', 'end')->count() === 0) {
-            abort(404, 'No end snapshot found for this sprint yet.');
-        }
-
-        $rows = $query->run($sprint);
-
-        return response()->json([
-            'sprint' => [
-                'id' => $sprint->id,
-                'name' => $sprint->name,
-                'closed_at' => optional($sprint->closed_at)->toIso8601String(),
-            ],
-            'rollover' => $rows,
-            'count' => count($rows),
-        ]);
+        return response()->json($report->run($sprint));
     }
 
     /**
      * GET /reports/sprints/{sprint}/rollover.csv
      */
-    public function csv(Sprint $sprint, RolloverCardsQuery $query)
+    public function csv(Sprint $sprint, GetSprintRolloverReportAction $report)
     {
-        if ($sprint->snapshots()->where('type', 'end')->count() === 0) {
-            abort(404, 'No end snapshot found for this sprint yet.');
-        }
-
-        $rows = $query->run($sprint);
+        $data = $report->run($sprint);
+        $rows = $data['rollover'] ?? [];
 
         $filename = 'rollover_sprint_'.$sprint->id.'.csv';
 

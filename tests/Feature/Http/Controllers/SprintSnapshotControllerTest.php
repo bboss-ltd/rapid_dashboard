@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Http\Controllers;
 
+use App\Models\Sprint;
 use App\Models\SprintSnapshot;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -17,25 +19,33 @@ final class SprintSnapshotControllerTest extends TestCase
     #[Test]
     public function index_displays_view(): void
     {
-        $sprintSnapshots = SprintSnapshot::factory()->count(3)->create();
+        $sprint = Sprint::factory()->create();
+        $sprintSnapshots = SprintSnapshot::factory()->count(3)->create([
+            'sprint_id' => $sprint->id,
+        ]);
+        $user = User::factory()->create();
 
-        $response = $this->get(route('sprint-snapshots.index'));
+        $response = $this->actingAs($user)->get(route('sprints.snapshots.index', $sprint));
 
         $response->assertOk();
         $response->assertViewIs('sprintSnapshot.index');
-        $response->assertViewHas('sprintSnapshots', $sprintSnapshots);
+        $response->assertViewHas('snapshots');
     }
 
 
     #[Test]
     public function show_displays_view(): void
     {
-        $sprintSnapshot = SprintSnapshot::factory()->create();
+        $sprint = Sprint::factory()->create();
+        $sprintSnapshot = SprintSnapshot::factory()->create([
+            'sprint_id' => $sprint->id,
+        ]);
+        $user = User::factory()->create();
 
-        $response = $this->get(route('sprint-snapshots.show', $sprintSnapshot));
+        $response = $this->actingAs($user)->get(route('sprints.snapshots.show', [$sprint, $sprintSnapshot]));
 
         $response->assertOk();
         $response->assertViewIs('sprintSnapshot.show');
-        $response->assertViewHas('sprintSnapshot', $sprintSnapshot);
+        $response->assertViewHas('snapshot', $sprintSnapshot);
     }
 }
