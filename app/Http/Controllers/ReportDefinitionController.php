@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Reporting\Actions\ListReportDefinitionsAction;
 use App\Models\ReportDefinition;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ReportDefinitionController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, ListReportDefinitionsAction $listDefinitions): View
     {
-        $reportDefinitions = ReportDefinition::all();
+        $reportDefinitions = $listDefinitions->run();
 
         return view('reportDefinition.index', [
             'reportDefinitions' => $reportDefinitions,

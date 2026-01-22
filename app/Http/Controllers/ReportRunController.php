@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Reporting\Actions\CreateReportRunAction;
+use App\Domains\Reporting\Actions\ListReportRunsAction;
 use App\Http\Requests\ReportRunStoreRequest;
 use App\Models\ReportRun;
 use Illuminate\Http\RedirectResponse;
@@ -10,9 +12,9 @@ use Illuminate\View\View;
 
 class ReportRunController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, ListReportRunsAction $listRuns): View
     {
-        $reportRuns = ReportRun::all();
+        $reportRuns = $listRuns->run();
 
         return view('report-run.index', [
             'reportRuns' => $reportRuns,
@@ -24,9 +26,9 @@ class ReportRunController extends Controller
         return view('report-run.create');
     }
 
-    public function store(ReportRunStoreRequest $request): RedirectResponse
+    public function store(ReportRunStoreRequest $request, CreateReportRunAction $createRun): RedirectResponse
     {
-        $reportRun = ReportRun::create($request->validated());
+        $reportRun = $createRun->run($request->validated());
 
         $request->session()->flash('reportRun.id', $reportRun->id);
 

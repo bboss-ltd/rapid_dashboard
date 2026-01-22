@@ -47,6 +47,13 @@ final class SprintRepository
             ->get();
     }
 
+    public function listAllByStartAsc(): Collection
+    {
+        return Sprint::query()
+            ->orderBy('starts_at')
+            ->get();
+    }
+
     public function searchWithStatus(string $status, string $search, int $perPage = 15): LengthAwarePaginator
     {
         $query = Sprint::query()
