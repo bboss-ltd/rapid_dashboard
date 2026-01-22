@@ -34,5 +34,25 @@ return [
         'percent_decimals' => 0,
     ],
 
+    'machines' => [
+        'status_colors' => [
+            'running' => '#65d38a',
+            'idle' => '#ffb74a',
+            'maintenance' => '#7fb2ff',
+            'stopped' => '#ff6b6b',
+            'unknown' => '#e8eefc',
+        ],
+        // Idle remains amber up to this many minutes, then turns red.
+        'idle_warning_minutes' => 30,
+        'idle_critical_minutes' => 120,
+        // Load thresholds (%). >= good_min = green, >= warn_min = amber, else red.
+        'load_good_min' => 50,
+        'load_warn_min' => 20,
+        'load_colors' => [
+            'good' => '#65d38a',
+            'warn' => '#ffb74a',
+            'low' => '#ff6b6b',
+        ],
+    ],
 
 ];
