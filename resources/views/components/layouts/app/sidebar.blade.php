@@ -43,6 +43,14 @@
             </flux:sidebar.nav>
 
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
+            @php($revision = config('app.revision') ?: 'dev')
+            @php($releasedAt = config('app.released_at'))
+            <div class="hidden lg:block px-4 pb-4 text-xs text-zinc-400">
+                Rev: {{ \Illuminate\Support\Str::limit($revision, 12, '') }}
+                @if($releasedAt)
+                    <span class="ml-2">Published: {{ \Illuminate\Support\Carbon::parse($releasedAt)->format('Y-m-d H:i') }}</span>
+                @endif
+            </div>
         </flux:sidebar>
 
         <!-- Mobile User Menu -->
@@ -50,6 +58,15 @@
             <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
 
             <flux:spacer />
+
+            @php($revision = config('app.revision') ?: 'dev')
+            @php($releasedAt = config('app.released_at'))
+            <span class="text-[11px] text-zinc-400">
+                Rev: {{ \Illuminate\Support\Str::limit($revision, 10, '') }}
+                @if($releasedAt)
+                    <span class="ml-1">Published: {{ \Illuminate\Support\Carbon::parse($releasedAt)->format('m-d H:i') }}</span>
+                @endif
+            </span>
 
             <flux:dropdown position="top" align="end">
                 <flux:profile
