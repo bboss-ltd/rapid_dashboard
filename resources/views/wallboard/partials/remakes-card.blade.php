@@ -22,28 +22,28 @@
             $acceptedPct = $requestedToday > 0 ? (int) round(($acceptedToday / $requestedToday) * 100) : 0;
         @endphp
         <div class="trendInline" style="justify-content:flex-end;">
-            <div class="trendItem">
+            <div class="trendItem" title="Requests vs accepted remakes created today. Percentage is accepted / requested.">
                 <div class="trendValue">{{ $requestedToday }}/{{ $acceptedToday }} ({{ $acceptedPct }}%)</div>
                 <div class="trendMeta">Requested/accepted today</div>
             </div>
-            <div class="trendItem">
+            <div class="trendItem" title="Current requested/accepted today compared with yesterday's requested/accepted values in brackets.">
                 <div class="trendValue trend-{{ $trendToday }}">
                     {{ $requestedToday }}/{{ $acceptedToday }}<span class="trendArrow">{{ $trendIcon($trendToday) }}</span>
                 </div>
                 <div class="trendMeta">Today vs yesterday ({{ $requestedPrevToday }}/{{ $acceptedPrevToday }})</div>
             </div>
-            <div class="trendItem">
+            <div class="trendItem" title="Total requested remakes so far this sprint, excluding remove labels.">
                 <div class="trendValue">{{ $remakeStats['sprint'] ?? 0 }}</div>
                 <div class="trendMeta">Sprint to date</div>
             </div>
-            <div class="trendItem">
+            <div class="trendItem" title="Sprint to date compared to last sprint's total (arrow shows trend).">
                 <div class="trendValue trend-{{ $trendSprint }}">
                     {{ $hasPrevSprint ? ($remakeStats['sprint'] ?? 0) : '—' }}
                     <span class="trendArrow">{{ $trendIcon($trendSprint) }}</span>
                 </div>
                 <div class="trendMeta">Sprint v last sprint</div>
             </div>
-            <div class="trendItem">
+            <div class="trendItem" title="Projected month pace based on current sprint trend.">
                 <div class="trendValue trend-{{ $trendMonth }}">{{ $remakeStats['month'] ?? 0 }}<span class="trendArrow">{{ $trendIcon($trendMonth) }}</span></div>
                 <div class="trendMeta">Month pace</div>
             </div>

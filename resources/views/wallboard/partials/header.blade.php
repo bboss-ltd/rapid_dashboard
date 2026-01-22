@@ -18,8 +18,20 @@
         </div>
     </div>
 
-    <div class="badge">
-        Last refresh:
-        <x-ui.datetime :value="now()" :format="config('display.datetime_seconds')"/>
+    <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+        <div class="badge">
+            Last refresh:
+            <x-ui.datetime :value="now()" :format="config('display.datetime_seconds')"/>
+        </div>
+        @php($revision = config('app.revision') ?: 'dev')
+        @php($releasedAt = config('app.released_at'))
+        <div class="badge" style="opacity:.85;">
+            Rev: {{ \Illuminate\Support\Str::limit($revision, 12, '') }}
+            @if($releasedAt)
+                <span style="margin-left:6px;">
+                    Published: {{ \Illuminate\Support\Carbon::parse($releasedAt)->format('m-d H:i') }}
+                </span>
+            @endif
+        </div>
     </div>
 </div>
