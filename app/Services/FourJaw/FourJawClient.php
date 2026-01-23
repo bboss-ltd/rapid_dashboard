@@ -8,6 +8,7 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Cookie\CookieJar;
 
 class FourJawClient
 {
@@ -89,7 +90,7 @@ class FourJawClient
     public function checkAuthToken(string $jwt): array
     {
         return $this->http
-            ->withCookies(['access_token' => $jwt], $this->baseDomain)
+            ->withOptions(['cookies' => $this->cookieJar($jwt)])
             ->get($this->endpoint('check_auth'))
             ->throw()
             ->json();
@@ -109,7 +110,7 @@ class FourJawClient
             return $this->http;
         }
 
-        return $this->http->withCookies(['access_token' => $token], $this->baseDomain);
+        return $this->http->withOptions(['cookies' => $this->cookieJar($token)]);
     }
 
     private function refreshAuth(): bool
@@ -141,6 +142,11 @@ class FourJawClient
     {
         $ttl = (int) config('fourjaw.auth_cache_ttl_minutes');
         return $ttl > 0 ? $ttl : 480;
+    }
+
+    private function cookieJar(string $token): CookieJar
+    {
+        return CookieJar::fromArray(['access_token' => $token], $this->baseDomain);
     }
 
     private function endpoint(string $key): string

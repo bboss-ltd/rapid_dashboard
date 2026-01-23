@@ -5,6 +5,7 @@ namespace App\Services\FourJaw;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Arr;
 use InvalidArgumentException;
+use Illuminate\Support\Facades\Log;
 
 class FourJawService
 {
@@ -93,7 +94,15 @@ class FourJawService
             $start = Arr::get($status, 'start_timestamp');
             $durationMinutes = null;
             if (is_string($start) && $start !== '') {
-                $durationMinutes = now()->diffInMinutes(Carbon::parse($start));
+                $durationMinutes = Carbon::parse($start)->diffInMinutes(now(), false);
+                if ($durationMinutes < 0) {
+                    Log::warning('FourJaw machine status start_timestamp is in the future', [
+                        'machine_id' => $id,
+                        'start_timestamp' => $start,
+                        'classification' => $classification,
+                    ]);
+                    $durationMinutes = 0;
+                }
             }
 
             $resultsById[$id] = [
@@ -126,6 +135,33 @@ class FourJawService
         }
 
         return $results;
+    }
+
+    /**
+     * @param array<int, string> $machineIds
+     * @return array<string, mixed>
+     */
+    public function getUtilisationSummary(
+        Carbon $start,
+        Carbon $end,
+        array $machineIds,
+        string $shifts = 'on_shift'
+    ): array {
+        if ($machineIds === []) {
+            return [];
+        }
+
+        $assetIds = implode(',', $machineIds);
+
+        return $this->fourjaw->get(
+            config('fourjaw.endpoints.utilisation_summary'),
+            [
+                'start_timestamp' => $start->toIso8601String(),
+                'end_timestamp' => $end->toIso8601String(),
+                'asset_ids' => $assetIds,
+                'shifts' => $shifts,
+            ]
+        );
     }
 
     private function normalizeStatus(string $classification, string $downtimeReason): string
