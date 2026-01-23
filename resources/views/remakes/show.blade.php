@@ -29,8 +29,6 @@
                 $labelOptions = array_values(array_filter(array_map('trim', array_keys(config('trello_sync.remake_label_actions.remove', [])))));
                 $currentLabel = $remake->reason_label ?: $remake->label_name;
                 $currentPoints = $remake->label_points ?? $remake->estimate_points;
-                $isRemoveLabel = $currentLabel && in_array($currentLabel, $labelOptions, true);
-                $pointsReadOnly = !$isRemoveLabel;
             @endphp
 
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
@@ -117,7 +115,7 @@
                         <label class="block text-sm text-gray-600 dark:text-gray-300">Points</label>
                         <input type="number" name="points" id="remakePointsInput" value="{{ old('points', $currentPoints) }}"
                                class="mt-1 w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900"
-                               @disabled($pointsReadOnly || $isRemoved)
+                               @disabled($isRemoved)
                                @if($isRemoved) data-removed="1" @endif />
                         <div class="text-xs text-gray-500 mt-1">Editable for remove labels. Read-only for reason labels.</div>
                     </div>
@@ -273,16 +271,7 @@
                 const pointsInput = document.getElementById('remakePointsInput');
                 if (!labelSelect || !pointsInput) return;
 
-                function syncLocks() {
-                    const option = labelSelect.options[labelSelect.selectedIndex];
-                    const type = option?.dataset?.type || '';
-                    const isRemove = type === 'remove';
-                    pointsInput.readOnly = !isRemove;
-                    pointsInput.disabled = pointsInput.hasAttribute('data-removed') || !isRemove;
-                }
-
-                labelSelect.addEventListener('change', syncLocks);
-                syncLocks();
+                pointsInput.disabled = pointsInput.hasAttribute('data-removed');
             })();
         </script>
     @endpush
