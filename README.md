@@ -169,8 +169,13 @@ Associated env vars:
 - `FOURJAW_LOGIN_PATH` (optional)
 - `FOURJAW_CHECK_AUTH_PATH` (optional)
 - `FOURJAW_CURRENT_STATUS_PATH` (optional)
+- `FOURJAW_UTILISATION_SUMMARY_PATH` (optional)
 - `FOURJAW_AUTH_CACHE_TTL` (optional, minutes)
 - `FOURJAW_STATUS_PAGE_SIZE` (optional)
+- `WALLBOARD_UTILISATION_DAYS` (optional, default 7)
+- `WALLBOARD_UTILISATION_SHIFTS` (optional, default on_shift)
+- `WALLBOARD_UTILISATION_MACHINE_SHIFTS` (optional, default on_shift)
+- `WALLBOARD_MACHINES_SHOW_UTILISATION` (optional, default true)
 
 Legacy env vars like `TRELLO_CF_SPRINT_STATUS` are no longer used; prefer the name-based registry field envs above.
 

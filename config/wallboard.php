@@ -35,6 +35,9 @@ return [
     ],
 
     'machines' => [
+        // Duration display: auto | hm | minutes
+        'duration_format' => env('WALLBOARD_MACHINES_DURATION_FORMAT', 'auto'),
+        'show_utilisation' => env('WALLBOARD_MACHINES_SHOW_UTILISATION', true),
         'status_colors' => [
             'running' => '#65d38a',
             'idle' => '#ffb74a',
@@ -53,6 +56,13 @@ return [
             'warn' => '#ffb74a',
             'low' => '#ff6b6b',
         ],
+    ],
+
+    'utilisation' => [
+        'summary_days' => (int) env('WALLBOARD_UTILISATION_DAYS', 7),
+        'summary_shifts' => env('WALLBOARD_UTILISATION_SHIFTS', 'on_shift'),
+        'per_machine_shifts' => env('WALLBOARD_UTILISATION_MACHINE_SHIFTS', 'on_shift'),
+        'debug' => env('WALLBOARD_UTILISATION_DEBUG', false),
     ],
 
 ];

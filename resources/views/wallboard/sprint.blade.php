@@ -217,7 +217,7 @@
 
         <div style="display:flex; flex-direction:column; gap:16px;">
             @include('wallboard.partials.remake-reasons-card')
-            @include('wallboard.partials.progress-card')
+            @include('wallboard.partials.utilisation-card')
         </div>
     </div>
     <div class="footerRow">

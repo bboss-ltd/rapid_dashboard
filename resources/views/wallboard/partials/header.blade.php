@@ -28,6 +28,8 @@
             const snapshotSeries = @json($series ?? []);
             const refreshSeconds = Number(@json($refreshSeconds ?? 60));
             const remakeReasonStats = @json($remakeReasonStats ?? []);
+            const utilisation = @json($utilisation ?? []);
+            const latestPoint = @json($latestPoint ?? null);
             const sprint = {
                 id: @json($sprint->id),
                 starts_at: @json(optional($sprint->starts_at)?->toIso8601String()),
@@ -223,6 +225,8 @@
                 snapshotSeries,
                 refreshSeconds,
                 remakeReasonStats,
+                utilisation,
+                latestPoint,
                 sprint,
                 cfg,
                 displayMode,

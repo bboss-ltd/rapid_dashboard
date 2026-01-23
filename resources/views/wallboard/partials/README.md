@@ -9,13 +9,15 @@ This folder contains reusable Blade components for the wallboard layout. Each co
 - `remakes-card.blade.php`
   - Remakes KPIs (current list count, requested/accepted today, comparisons, sprint/month pace).
 - `machines-card.blade.php`
-  - Demo machine status/load panel (uses config-based status colors).
+  - Machine status panel with FourJaw status + utilisation.
 - `burndown-card.blade.php`
   - Burndown chart container/markup.
 - `remake-reasons-card.blade.php`
   - Remake reasons donut + legend.
+- `utilisation-card.blade.php`
+  - Utilisation donut (last N working days).
 - `progress-card.blade.php`
-  - Progress donut (done vs remaining).
+  - Progress donut (done vs remaining). Currently not used on the wallboard.
 
 ## Scripts
 

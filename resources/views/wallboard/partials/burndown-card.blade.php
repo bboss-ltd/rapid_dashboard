@@ -4,6 +4,10 @@
             <div class="cardTitle">Burndown</div>
             <div class="cardSub">Remaining progress over time</div>
         </div>
+        <div class="cardAction" style="text-align:right;">
+            <div style="font-size:12px; opacity:.75;">Sprint progress</div>
+            <div id="burndownProgressPct" style="font-size:20px; font-weight:700;">—%</div>
+        </div>
     </div>
     <div style="margin-top: 10px;">
         <div id="chartWrap" style="position: relative;">
@@ -44,6 +48,7 @@
             const canvas = document.getElementById('burndown');
             const chartWrap = document.getElementById('chartWrap');
             const tooltip = document.getElementById('chartTooltip');
+            const progressEl = document.getElementById('burndownProgressPct');
             if (!canvas) return;
 
             const ctx = canvas.getContext('2d');
@@ -390,6 +395,14 @@
 
             const latest = [...actual].reverse().find(p => p && p.remaining_points !== null) || null;
             W.latestPoint = latest;
+
+            if (progressEl) {
+                const done = Number(latest?.done_points ?? 0);
+                const remaining = Number(latest?.remaining_points ?? 0);
+                const total = Math.max(0, done) + Math.max(0, remaining);
+                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                progressEl.textContent = `${pct}%`;
+            }
 
             if (tooltipEnabled) {
                 canvas.addEventListener('mousemove', (evt) => {
