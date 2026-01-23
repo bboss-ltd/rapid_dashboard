@@ -102,20 +102,27 @@ class WallboardController extends Controller
         Request $request,
         BuildManagementWallboardViewDataAction $buildViewData,
     ) {
-        $date = $request->input('date');
         $startDate = $request->input('start_date');
         $endDate = $request->input('end_date');
+        $highlight = $request->input('highlight', 'max');
+        $highlight = in_array($highlight, ['max', 'delta'], true) ? $highlight : 'max';
+        $deltaDays = max(1, (int) $request->input('delta_days', 1));
 
-        if (is_string($date) && $date !== '') {
-            $start = Carbon::createFromFormat('Y-m-d', $date)->startOfDay();
+        $startDate = is_string($startDate) && $startDate !== '' ? $startDate : null;
+        $endDate = is_string($endDate) && $endDate !== '' ? $endDate : null;
+
+        if ($startDate && !$endDate) {
+            $start = Carbon::createFromFormat('Y-m-d', $startDate)->startOfDay();
             $end = $start->copy()->endOfDay();
+        } elseif ($endDate && !$startDate) {
+            $start = Carbon::createFromFormat('Y-m-d', $endDate)->startOfDay();
+            $end = $start->copy()->endOfDay();
+        } elseif ($startDate && $endDate) {
+            $start = Carbon::createFromFormat('Y-m-d', $startDate)->startOfDay();
+            $end = Carbon::createFromFormat('Y-m-d', $endDate)->endOfDay();
         } else {
-            $start = is_string($startDate) && $startDate !== ''
-                ? Carbon::createFromFormat('Y-m-d', $startDate)->startOfDay()
-                : now()->subDays(6)->startOfDay();
-            $end = is_string($endDate) && $endDate !== ''
-                ? Carbon::createFromFormat('Y-m-d', $endDate)->endOfDay()
-                : now()->endOfDay();
+            $start = now()->subDays(6)->startOfDay();
+            $end = now()->endOfDay();
         }
 
         $perPage = (int) $request->input('per_page', 7);
@@ -124,14 +131,15 @@ class WallboardController extends Controller
 
         $queryParams = $request->query();
 
-        $viewData = $buildViewData->run($start, $end, $perPage, $page, $queryParams);
+        $viewData = $buildViewData->run($start, $end, $perPage, $page, $queryParams, $highlight, $deltaDays);
 
         return view('wallboard.management', [
             ...$viewData,
             'start' => $start,
             'end' => $end,
-            'date' => $date,
             'perPage' => $perPage,
+            'highlight' => $highlight,
+            'deltaDays' => $deltaDays,
         ]);
     }
 }

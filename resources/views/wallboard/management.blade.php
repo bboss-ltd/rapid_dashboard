@@ -56,17 +56,26 @@
             margin-bottom: 10px;
         }
 
+        .cardHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, .08);
+        }
+
         .machineItem {
             display: flex;
             flex-direction: column;
             gap: 6px;
             padding: 10px 0;
-            border-top: 1px solid rgba(255, 255, 255, .08);
         }
 
-        .machineItem:first-of-type {
-            border-top: none;
-            padding-top: 0;
+        .machineItem + .machineItem {
+            border-top: 1px solid rgba(255, 255, 255, .08);
+            padding-top: 10px;
         }
 
         .machineStatus {
@@ -124,6 +133,11 @@
             text-align: left;
         }
 
+        td.numeric,
+        th.numeric {
+            text-align: center;
+        }
+
         th {
             font-weight: 600;
             opacity: .75;
@@ -155,6 +169,11 @@
         .rangeNote {
             font-size: 12px;
             opacity: .6;
+        }
+
+        .cellHighlight {
+            background: rgba(101, 211, 138, .18);
+            border-radius: 8px;
         }
     </style>
 </head>
@@ -255,12 +274,13 @@
     <div class="factoryRow">
         @foreach($factories as $factory)
             <div class="card">
-                <div class="factoryTitle">{{ $factory['name'] }}</div>
+                <div class="cardHeader">
+                    <div class="factoryTitle">{{ $factory['name'] }}</div>
+                </div>
                 @forelse($factory['machines'] as $machine)
-                    @php($statusColor = $statusColorFor($machine))
                     <div class="machineItem">
                         <div class="machineStatus">
-                            <span style="color: {{ $statusColor }};">{{ ucfirst($machine['status'] ?? 'unknown') }}</span>
+                            <span style="color: {{ $statusColorFor($machine) }};">{{ ucfirst($machine['status'] ?? 'unknown') }}</span>
                             <span> • </span>
                             <span>{{ $formatDuration($machine['duration_minutes'] ?? null) }}</span>
                         </div>
@@ -274,19 +294,29 @@
     </div>
 
     <div class="card tableWrap">
+        <div class="cardHeader">
+            <div class="factoryTitle">Remake requests by day</div>
+        </div>
         <div class="filters">
             <form method="get" class="filters">
                 <div>
-                    <label>Single day</label>
-                    <input type="date" name="date" value="{{ $date ?? '' }}">
-                </div>
-                <div>
-                    <label>Start date</label>
+                    <label>From</label>
                     <input type="date" name="start_date" value="{{ request('start_date') }}">
                 </div>
                 <div>
-                    <label>End date</label>
+                    <label>To</label>
                     <input type="date" name="end_date" value="{{ request('end_date') }}">
+                </div>
+                <div>
+                    <label>Highlight</label>
+                    <select name="highlight">
+                        <option value="max" @selected($highlight === 'max')>Highest count</option>
+                        <option value="delta" @selected($highlight === 'delta')>Largest increase</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Delta days</label>
+                    <input type="number" name="delta_days" min="1" value="{{ $deltaDays }}">
                 </div>
                 <div>
                     <label>Rows per page</label>
@@ -308,21 +338,31 @@
                 <tr>
                     <th>Day</th>
                     @foreach($reasonOrder as $label)
-                        <th>{{ $label }}</th>
+                        <th class="numeric">{{ $label }}</th>
                     @endforeach
+                    <th class="numeric">Total</th>
                 </tr>
                 </thead>
                 <tbody>
                 @forelse($reasonRows as $row)
                     <tr>
-                        <td>{{ $row['day'] }}</td>
+                        @php
+                            $dayLabel = $row['day'];
+                            try {
+                                $dayLabel = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $row['day'])->format('D d/m/Y');
+                            } catch (\Throwable) {
+                            }
+                        @endphp
+                        <td>{{ $dayLabel }}</td>
                         @foreach($reasonOrder as $label)
-                            <td>{{ $row['counts'][$label] ?? 0 }}</td>
+                            @php($highlighted = !empty($row['highlights'][$label]))
+                            <td class="numeric {{ $highlighted ? 'cellHighlight' : '' }}">{{ $row['counts'][$label] ?? 0 }}</td>
                         @endforeach
+                        <td class="numeric">{{ $row['total'] ?? 0 }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="{{ count($reasonOrder) + 1 }}">No data for selected range.</td>
+                        <td colspan="{{ count($reasonOrder) + 2 }}">No data for selected range.</td>
                     </tr>
                 @endforelse
                 </tbody>

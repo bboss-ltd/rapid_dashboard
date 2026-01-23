@@ -26,10 +26,12 @@ class BuildManagementWallboardViewDataAction
         int $perPage,
         int $page,
         array $queryParams = [],
+        string $highlightMode = 'max',
+        int $deltaDays = 1,
     ): array {
         $factories = $this->buildFactoryCards();
 
-        [$rows, $totalDays] = $this->buildReasonTable($start, $end, $perPage, $page, $queryParams);
+        [$rows, $totalDays] = $this->buildReasonTable($start, $end, $perPage, $page, $queryParams, $highlightMode, $deltaDays);
 
         return [
             'factories' => $factories,
@@ -122,40 +124,14 @@ class BuildManagementWallboardViewDataAction
         int $perPage,
         int $page,
         array $queryParams = [],
+        string $highlightMode = 'max',
+        int $deltaDays = 1,
     ): array {
         $start = $start->copy()->startOfDay();
         $end = $end->copy()->endOfDay();
 
         $order = $this->remakeStats->reasonFlow();
         $flowMap = $this->remakeStats->reasonFlowMap();
-
-        $rows = DB::table('sprint_remakes')
-            ->whereBetween('first_seen_at', [$start, $end])
-            ->whereNull('removed_at')
-            ->selectRaw('DATE(first_seen_at) as day, reason_label, label_name, COUNT(*) as total')
-            ->groupBy('day', 'reason_label', 'label_name')
-            ->get();
-
-        $countsByDay = [];
-
-        foreach ($rows as $row) {
-            if ($this->remakeStats->isRemoveLabel($row->label_name ?? null)) {
-                continue;
-            }
-
-            $day = (string) ($row->day ?? '');
-            if ($day === '') {
-                continue;
-            }
-
-            $reasonKey = $this->remakeStats->reasonKey($row->reason_label ?? null);
-            $label = $reasonKey === null ? 'Unlabelled' : ($flowMap[$reasonKey] ?? null);
-            if (!$label) {
-                continue;
-            }
-
-            $countsByDay[$day][$label] = ($countsByDay[$day][$label] ?? 0) + (int) ($row->total ?? 0);
-        }
 
         $days = [];
         $cursor = $start->copy();
@@ -169,15 +145,80 @@ class BuildManagementWallboardViewDataAction
         $offset = max(0, ($page - 1) * $perPage);
         $pageDays = array_slice($days, $offset, $perPage);
 
+        $fetchCountsForDay = function (string $day) use ($flowMap, $order) {
+            $dayStart = Carbon::createFromFormat('Y-m-d', $day)->startOfDay();
+            $dayEnd = $dayStart->copy()->endOfDay();
+
+            $rows = DB::table('sprint_remakes')
+                ->whereBetween('first_seen_at', [$dayStart, $dayEnd])
+                ->whereNull('removed_at')
+                ->selectRaw('reason_label, label_name, COUNT(*) as total')
+                ->groupBy('reason_label', 'label_name')
+                ->get();
+
+            $counts = [];
+            foreach ($order as $label) {
+                $counts[$label] = 0;
+            }
+
+            foreach ($rows as $entry) {
+                if ($this->remakeStats->isRemoveLabel($entry->label_name ?? null)) {
+                    continue;
+                }
+                $reasonKey = $this->remakeStats->reasonKey($entry->reason_label ?? null);
+                $label = $reasonKey === null ? 'Unlabelled' : ($flowMap[$reasonKey] ?? null);
+                if (!$label) {
+                    continue;
+                }
+                $counts[$label] = ($counts[$label] ?? 0) + (int) ($entry->total ?? 0);
+            }
+
+            return $counts;
+        };
+
         $tableRows = [];
         foreach ($pageDays as $day) {
+            $counts = $fetchCountsForDay($day);
             $row = [
                 'day' => $day,
                 'counts' => [],
+                'highlights' => [],
+                'total' => 0,
             ];
             foreach ($order as $label) {
-                $row['counts'][$label] = $countsByDay[$day][$label] ?? 0;
+                $count = $counts[$label] ?? 0;
+                $row['counts'][$label] = $count;
+                $row['total'] += $count;
             }
+
+            if ($highlightMode === 'delta') {
+                $compareDay = Carbon::createFromFormat('Y-m-d', $day)->subDays($deltaDays)->toDateString();
+                $prevCounts = $compareDay !== $day ? $fetchCountsForDay($compareDay) : [];
+                $deltas = [];
+                foreach ($order as $label) {
+                    $current = $row['counts'][$label] ?? 0;
+                    $prev = $prevCounts[$label] ?? 0;
+                    $deltas[$label] = $current - $prev;
+                }
+                $maxDelta = max($deltas ?: [0]);
+                if ($maxDelta > 0) {
+                    foreach ($deltas as $label => $delta) {
+                        if ($delta === $maxDelta) {
+                            $row['highlights'][$label] = true;
+                        }
+                    }
+                }
+            } else {
+                $max = max($row['counts'] ?: [0]);
+                if ($max > 0) {
+                    foreach ($row['counts'] as $label => $count) {
+                        if ($count === $max) {
+                            $row['highlights'][$label] = true;
+                        }
+                    }
+                }
+            }
+
             $tableRows[] = $row;
         }
 
