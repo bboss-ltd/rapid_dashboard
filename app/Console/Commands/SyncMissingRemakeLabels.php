@@ -4,7 +4,9 @@ namespace App\Console\Commands;
 
 use App\Models\Sprint;
 use App\Models\SprintRemake;
+use App\Domains\Estimation\EstimatePointsResolver;
 use App\Services\Trello\TrelloClient;
+use App\Services\Trello\TrelloSprintBoardReader;
 use Illuminate\Console\Command;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -13,19 +15,20 @@ class SyncMissingRemakeLabels extends Command
 {
     protected $signature = 'trello:remake-labels:sync-missing {--sprint=} {--limit=}';
 
-    protected $description = 'Backfills missing remake labels from Trello for existing sprint remakes.';
+    protected $description = 'Syncs remake labels and estimate points from Trello for existing sprint remakes.';
 
-    public function handle(TrelloClient $trello): int
+    public function handle(
+        TrelloClient $trello,
+        TrelloSprintBoardReader $reader,
+        EstimatePointsResolver $pointsResolver,
+    ): int
     {
         $sprintId = $this->option('sprint');
         $limit = (int) ($this->option('limit') ?? 0);
 
         $query = SprintRemake::query()
             ->whereNull('removed_at')
-            ->where(function ($q) {
-                $q->whereNull('reason_label')
-                    ->orWhereNull('label_name');
-            });
+            ->whereNotNull('trello_card_id');
 
         if ($sprintId) {
             $query->where('sprint_id', (int) $sprintId);
@@ -37,7 +40,7 @@ class SyncMissingRemakeLabels extends Command
 
         $remakes = $query->orderBy('id')->get();
         if ($remakes->isEmpty()) {
-            $this->info('No remakes missing labels.');
+            $this->info('No remakes to sync.');
             return Command::SUCCESS;
         }
 
@@ -50,7 +53,9 @@ class SyncMissingRemakeLabels extends Command
         $now = Carbon::now();
         $updated = 0;
 
-        $labelLookup = $this->fetchLabelsBatch($trello, $remakes->pluck('trello_card_id')->filter()->all());
+        $cardLookup = $this->fetchCardsBatch($trello, $remakes->pluck('trello_card_id')->filter()->all());
+
+        $customFieldCache = [];
 
         foreach ($remakes as $remake) {
             if (!$remake->trello_card_id) {
@@ -58,43 +63,80 @@ class SyncMissingRemakeLabels extends Command
                 continue;
             }
 
-            $labels = $labelLookup[$remake->trello_card_id] ?? [];
-            if ($labels === []) {
+            $card = $cardLookup[$remake->trello_card_id] ?? null;
+            if (!$card) {
                 continue;
+            }
+
+            $labels = Arr::get($card, 'labels', []);
+            if (!is_array($labels)) {
+                $labels = [];
             }
 
             $updates = [];
 
-            if ($remake->reason_label === null) {
-                foreach ($labels as $label) {
-                    $name = trim((string) Arr::get($label, 'name', ''));
-                    if ($name === '') {
-                        continue;
-                    }
-                    $normalized = $this->normalizeLabel($name);
-                    if (isset($reasonMap[$normalized])) {
-                        $updates['reason_label'] = $name;
-                        $updates['reason_label_color'] = (string) Arr::get($label, 'color', '');
-                        $updates['reason_set_at'] = $now;
-                        break;
-                    }
+            $reasonLabel = null;
+            $reasonColor = null;
+            foreach ($labels as $label) {
+                $name = trim((string) Arr::get($label, 'name', ''));
+                if ($name === '') {
+                    continue;
+                }
+                $normalized = $this->normalizeLabel($name);
+                if (isset($reasonMap[$normalized])) {
+                    $reasonLabel = $name;
+                    $reasonColor = (string) Arr::get($label, 'color', '');
+                    break;
                 }
             }
 
-            if ($remake->label_name === null) {
-                foreach ($labels as $label) {
-                    $name = trim((string) Arr::get($label, 'name', ''));
-                    if ($name === '') {
-                        continue;
-                    }
-                    $normalized = $this->normalizeLabel($name);
-                    if (in_array($normalized, $removeLabels, true)) {
-                        $updates['label_name'] = $name;
-                        $updates['label_points'] = $removeMap[$normalized];
-                        $updates['label_set_at'] = $now;
-                        break;
-                    }
+            if ($remake->reason_label !== $reasonLabel) {
+                $updates['reason_label'] = $reasonLabel;
+                $updates['reason_label_color'] = $reasonLabel ? $reasonColor : null;
+                $updates['reason_set_at'] = $reasonLabel ? $now : null;
+            }
+
+            $removeLabel = null;
+            foreach ($labels as $label) {
+                $name = trim((string) Arr::get($label, 'name', ''));
+                if ($name === '') {
+                    continue;
                 }
+                $normalized = $this->normalizeLabel($name);
+                if (in_array($normalized, $removeLabels, true)) {
+                    $removeLabel = $name;
+                    break;
+                }
+            }
+
+            if ($remake->label_name !== $removeLabel) {
+                $updates['label_name'] = $removeLabel;
+                $updates['label_points'] = $removeLabel ? ($removeMap[$this->normalizeLabel($removeLabel)] ?? null) : null;
+                $updates['label_set_at'] = $removeLabel ? $now : null;
+            }
+
+            $boardId = $remake->sprint?->trello_board_id;
+            if ($boardId) {
+                if (!array_key_exists($boardId, $customFieldCache)) {
+                    $customFields = $reader->fetchCustomFields($boardId);
+                    $customFieldCache[$boardId] = [
+                        'lookup' => $reader->buildDropdownLookup($customFields),
+                        'estimationField' => $reader->findCustomFieldIdByName($customFields, 'Estimation'),
+                    ];
+                }
+                $estimationFieldId = $customFieldCache[$boardId]['estimationField'];
+                $lookup = $customFieldCache[$boardId]['lookup'] ?? [];
+                $estLabel = $estimationFieldId
+                    ? $reader->resolveDropdownText($card, $estimationFieldId, $lookup)
+                    : null;
+                $estPoints = $pointsResolver->pointsForLabel($estLabel);
+
+                if ($removeLabel) {
+                    $removeKey = $this->normalizeLabel($removeLabel);
+                    $estPoints = $updates['label_points'] ?? $remake->label_points ?? ($removeMap[$removeKey] ?? $estPoints);
+                }
+
+                $updates['estimate_points'] = $estPoints;
             }
 
             if ($updates !== []) {
@@ -111,7 +153,7 @@ class SyncMissingRemakeLabels extends Command
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function fetchLabelsBatch(TrelloClient $trello, array $cardIds): array
+    private function fetchCardsBatch(TrelloClient $trello, array $cardIds): array
     {
         $cardIds = array_values(array_filter(array_map('trim', $cardIds)));
         if ($cardIds === []) {
@@ -120,7 +162,7 @@ class SyncMissingRemakeLabels extends Command
 
         $results = [];
         $urls = array_map(function ($id) {
-            return "/cards/{$id}?fields=labels";
+            return "/cards/{$id}?fields=name,dateLastActivity,labels&customFieldItems=true";
         }, $cardIds);
 
         try {
@@ -145,8 +187,7 @@ class SyncMissingRemakeLabels extends Command
             if (!$cardId) {
                 continue;
             }
-            $labels = Arr::get($body, 'labels', []);
-            $results[$cardId] = is_array($labels) ? $labels : [];
+            $results[$cardId] = $body;
         }
 
         return $results;

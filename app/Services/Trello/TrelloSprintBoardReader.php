@@ -19,6 +19,14 @@ class TrelloSprintBoardReader
         ]);
     }
 
+    public function fetchCard(string $cardId): array
+    {
+        return $this->trello->get("/cards/{$cardId}", [
+            'fields' => 'name,idList,dateLastActivity,labels',
+            'customFieldItems' => 'true',
+        ]);
+    }
+
     public function buildDropdownLookup(array $customFields): array
     {
         // [customFieldId => [optionId => optionText]]

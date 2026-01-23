@@ -46,6 +46,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('remakes', SprintRemakeController::class)->only(['index', 'show', 'update']);
     Route::post('/remakes/refresh', [SprintRemakeController::class, 'refreshIndex'])->name('remakes.refresh');
     Route::post('/remakes/{remake}/refresh', [SprintRemakeController::class, 'refreshShow'])->name('remakes.refresh.show');
+    Route::post('/remakes/{remake}/sync-estimate', [SprintRemakeController::class, 'syncEstimate'])->name('remakes.sync.estimate');
     Route::post('/remakes/{remake}/trello', [SprintRemakeController::class, 'updateTrello'])->name('remakes.trello.update');
 
     // Reports UI pages
