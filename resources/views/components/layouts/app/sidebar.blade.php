@@ -23,6 +23,9 @@
                     <flux:sidebar.item icon="wrench" :href="route('remakes.index')" :current="request()->routeIs('remakes.*')" wire:navigate>
                         {{ __('Remakes') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="chart-bar" :href="route('remakes.reasons')" :current="request()->routeIs('remakes.reasons')" wire:navigate>
+                        {{ __('Remake Reasons') }}
+                    </flux:sidebar.item>
 
                     <flux:sidebar.item icon="chart-bar" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
                         {{ __('Reports') }}
@@ -123,6 +126,7 @@
 
         {{ $slot }}
 
+        @stack('scripts')
         @fluxScripts
     </body>
 </html>

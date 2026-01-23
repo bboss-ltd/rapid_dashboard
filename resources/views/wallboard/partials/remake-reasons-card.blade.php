@@ -49,10 +49,10 @@
                 const reasonData = W.remakeReasonStats || {};
                 const counts = reasonData.counts || {};
                 const colorsByLabel = reasonData.colors || {};
-                const otherLabels = reasonData.other_labels || {};
+                const order = Array.isArray(reasonData.order) ? reasonData.order : Object.keys(counts);
 
-                const entries = Object.entries(counts)
-                    .map(([label, count]) => [String(label), Number(count || 0)])
+                const entries = order
+                    .map((label) => [String(label), Number(counts[label] || 0)])
                     .filter(([, count]) => count > 0);
 
                 const total = entries.reduce((sum, [, count]) => sum + count, 0);
@@ -122,11 +122,7 @@
                         swatch.style.background = color;
                         const pct = Math.round((count / total) * 100);
                         const text = document.createElement('span');
-                        let suffix = '';
-                        if (label === 'Other' && Object.keys(otherLabels).length > 0) {
-                            suffix = ` (${Object.keys(otherLabels).join(', ')})`;
-                        }
-                        text.textContent = `${label} ${pct}%${suffix}`;
+                        text.textContent = `${label} ${pct}%`;
                         item.appendChild(swatch);
                         item.appendChild(text);
                         remakeLegend.appendChild(item);

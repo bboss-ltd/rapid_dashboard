@@ -39,6 +39,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/sprints/{sprint}/snapshots/{snapshot}', [SprintSnapshotController::class, 'show'])->name('sprints.snapshots.show');
 
     // Remakes admin
+    Route::get('/remakes/reasons', [SprintRemakeController::class, 'reasons'])->name('remakes.reasons');
     Route::resource('remakes', SprintRemakeController::class)->only(['index', 'show', 'update']);
     Route::post('/remakes/refresh', [SprintRemakeController::class, 'refreshIndex'])->name('remakes.refresh');
     Route::post('/remakes/{remake}/refresh', [SprintRemakeController::class, 'refreshShow'])->name('remakes.refresh.show');

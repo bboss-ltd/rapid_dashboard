@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SprintRemakeUpdateRequest;
+use App\Domains\Wallboard\Repositories\RemakeStatsRepository;
 use App\Models\Sprint;
 use App\Models\SprintRemake;
 use App\Services\Trello\TrelloClient;
@@ -17,23 +18,66 @@ class SprintRemakeController extends Controller
 {
     public function index(Request $request): View
     {
+        $filterMode = $request->input('filter_mode', 'sprint');
+        $filterMode = in_array($filterMode, ['sprint', 'day', 'range'], true) ? $filterMode : 'sprint';
+
         $sprintId = $request->integer('sprint_id');
-        if (!$sprintId) {
+        if ($filterMode === 'sprint' && !$sprintId) {
             $sprintId = Sprint::active()->value('id');
         }
         $perPage = (int) $request->input('per_page', 50);
         $perPage = in_array($perPage, [25, 50, 100], true) ? $perPage : 50;
+        $sort = $request->input('sort');
+        $direction = strtolower((string) $request->input('dir', 'asc'));
+        $direction = in_array($direction, ['asc', 'desc'], true) ? $direction : 'asc';
 
         $query = SprintRemake::query()
             ->with(['sprint', 'card'])
             ->orderByDesc('last_seen_at')
             ->orderByDesc('id');
 
-        if ($sprintId) {
+        if ($filterMode === 'sprint' && $sprintId) {
             $query->where('sprint_id', $sprintId);
         }
-        if (!$request->boolean('show_removed')) {
-            $query->whereNull('removed_at');
+        $query->whereNull('removed_at');
+
+        $date = $request->input('date');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        if ($filterMode === 'day') {
+            if (!is_string($date) || $date === '') {
+                $date = Carbon::today()->toDateString();
+            }
+            if (is_string($date) && $date !== '') {
+            try {
+                $day = Carbon::createFromFormat('Y-m-d', $date)->startOfDay();
+                $query->whereBetween('first_seen_at', [$day, $day->copy()->endOfDay()]);
+            } catch (\Throwable) {
+            }
+            }
+        } elseif ($filterMode === 'range') {
+            if (is_string($startDate) && $startDate !== '') {
+                try {
+                    $start = Carbon::createFromFormat('Y-m-d', $startDate)->startOfDay();
+                    $query->where('first_seen_at', '>=', $start);
+                } catch (\Throwable) {
+                }
+            }
+            if (is_string($endDate) && $endDate !== '') {
+                try {
+                    $end = Carbon::createFromFormat('Y-m-d', $endDate)->endOfDay();
+                    $query->where('first_seen_at', '<=', $end);
+                } catch (\Throwable) {
+                }
+            }
+        }
+
+        if ($sort === 'reason') {
+            $query->reorder()
+                ->orderByRaw('COALESCE(reason_label, label_name) '.$direction)
+                ->orderByDesc('last_seen_at')
+                ->orderByDesc('id');
         }
 
         $remakes = $query->paginate($perPage)->withQueryString();
@@ -46,6 +90,119 @@ class SprintRemakeController extends Controller
             'sprints' => $sprints,
             'selectedSprint' => $sprintId,
             'perPage' => $perPage,
+            'sort' => $sort,
+            'dir' => $direction,
+            'filterMode' => $filterMode,
+        ]);
+    }
+
+    public function reasons(Request $request, RemakeStatsRepository $remakeStats): View
+    {
+        $dateInput = $request->input('date');
+        $day = Carbon::today();
+        if (is_string($dateInput) && $dateInput !== '') {
+            try {
+                $day = Carbon::createFromFormat('Y-m-d', $dateInput)->startOfDay();
+            } catch (\Throwable) {
+                $day = Carbon::today();
+            }
+        }
+
+        $start = $day->copy()->startOfDay();
+        $end = $day->copy()->endOfDay();
+
+        $sprint = Sprint::active()->first();
+
+        $query = SprintRemake::query()
+            ->with(['sprint', 'card'])
+            ->whereBetween('first_seen_at', [$start, $end]);
+
+        if ($sprint) {
+            $query->where('sprint_id', $sprint->id);
+        }
+
+        $query->whereNull('removed_at');
+
+        $remakes = $query->orderByDesc('first_seen_at')->get();
+
+        $baseQuery = SprintRemake::query();
+        if ($sprint) {
+            $baseQuery->where('sprint_id', $sprint->id);
+        }
+        $firstSeen = $baseQuery->orderBy('first_seen_at')->value('first_seen_at');
+        $earliestDay = $firstSeen ? Carbon::parse($firstSeen)->startOfDay() : $day->copy()->startOfDay();
+        $latestDay = Carbon::today()->startOfDay();
+
+        $prevDay = $day->copy()->subDay();
+        $nextDay = $day->copy()->addDay();
+
+        $hasPrev = false;
+        if ($prevDay->greaterThanOrEqualTo($earliestDay)) {
+            $hasPrev = (clone $baseQuery)
+                ->whereBetween('first_seen_at', [$prevDay->copy()->startOfDay(), $prevDay->copy()->endOfDay()])
+                ->exists();
+        }
+
+        $hasNext = false;
+        if ($nextDay->lessThanOrEqualTo($latestDay)) {
+            $hasNext = (clone $baseQuery)
+                ->whereBetween('first_seen_at', [$nextDay->copy()->startOfDay(), $nextDay->copy()->endOfDay()])
+                ->exists();
+        }
+
+        $flow = $remakeStats->reasonFlow();
+        $flowMap = $remakeStats->reasonFlowMap();
+        $removeLabels = $remakeStats->removeLabelNames();
+
+        $groups = array_fill_keys($flow, []);
+        $total = 0;
+        $removedGroups = [];
+
+        foreach ($remakes as $remake) {
+            if ($remakeStats->isRemoveLabel($remake->label_name)) {
+                $removeKey = $remakeStats->reasonKey($remake->label_name) ?? 'removed';
+                $removedGroups[$removeKey]['label'] = $remake->label_name ?: 'Removed';
+                $removedGroups[$removeKey]['items'][] = $remake;
+                continue;
+            }
+
+            $reasonKey = $remakeStats->reasonKey($remake->reason_label);
+            if ($reasonKey === null) {
+                $groups['Unlabelled'][] = $remake;
+                $total++;
+                continue;
+            }
+
+            if (array_key_exists($reasonKey, $flowMap)) {
+                $label = $flowMap[$reasonKey];
+                $groups[$label][] = $remake;
+                $total++;
+            }
+        }
+
+        $counts = [];
+        $percents = [];
+        foreach ($groups as $label => $items) {
+            $count = is_countable($items) ? count($items) : 0;
+            $counts[$label] = $count;
+            $percents[$label] = $total > 0 ? round(($count / $total) * 100) : 0;
+        }
+
+        return view('remakes.reasons', [
+            'day' => $day,
+            'start' => $start,
+            'end' => $end,
+            'sprint' => $sprint,
+            'groups' => $groups,
+            'counts' => $counts,
+            'percents' => $percents,
+            'total' => $total,
+            'showRemoved' => $request->boolean('show_removed'),
+            'removedGroups' => $removedGroups,
+            'hasPrev' => $hasPrev,
+            'hasNext' => $hasNext,
+            'prevDay' => $prevDay,
+            'nextDay' => $nextDay,
         ]);
     }
 
@@ -147,15 +304,13 @@ class SprintRemakeController extends Controller
         if ($sprintId) {
             $query->where('sprint_id', $sprintId);
         }
-        if (!$request->boolean('show_removed')) {
-            $query->whereNull('removed_at');
-        }
+        $query->whereNull('removed_at');
 
         $cardIds = $query->pluck('trello_card_id')->filter()->unique()->values()->all();
         $fetched = $this->refreshTrelloCards($trello, $cardIds);
 
         return redirect()
-            ->route('remakes.index', $request->only(['sprint_id', 'show_removed']))
+            ->route('remakes.index', $request->only(['sprint_id']))
             ->with('status', "Trello refresh complete. Updated {$fetched} cards.");
     }
 

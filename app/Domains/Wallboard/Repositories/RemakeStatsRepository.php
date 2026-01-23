@@ -120,68 +120,46 @@ class RemakeStatsRepository
         return $stats;
     }
 
-    public function buildRemakeReasonStats(Sprint $sprint): array
+    public function buildRemakeReasonStats(Sprint $sprint, Carbon $start, Carbon $end): array
     {
-        $labels = array_values(array_filter(array_map(function ($label) {
-            return $this->normalizeReasonLabelDisplay($label);
-        }, config('trello_sync.remake_reason_labels', []))));
-        $labelKeys = array_map(fn($l) => mb_strtolower(trim((string) $l)), $labels);
+        $order = $this->reasonFlow();
+        $flowMap = $this->reasonFlowMap();
+
+        $removeLabels = $this->removeLabelNames();
 
         $rows = DB::table('sprint_remakes')
             ->where('sprint_id', $sprint->id)
+            ->whereBetween('first_seen_at', [$start, $end])
             ->whereNull('removed_at')
-            ->where(function ($q) {
-                $q->whereNull('label_points')
-                    ->orWhere('label_points', '>', 0);
-            })
-            ->selectRaw('COALESCE(reason_label, "") as reason_label, COUNT(*) as total')
-            ->groupBy('reason_label')
+            ->select('reason_label', 'label_name')
             ->get();
 
-        $counts = [];
-        $otherLabels = [];
-        foreach ($labels as $label) {
-            $counts[$label] = 0;
-        }
-
-        $unlabeled = 0;
-        $other = 0;
+        $counts = array_fill_keys($order, 0);
 
         foreach ($rows as $row) {
-            $reason = $this->normalizeReasonLabelDisplay($row->reason_label ?? null);
-            $count = (int) ($row->total ?? 0);
-            if (!$reason) {
-                $unlabeled += $count;
+            $labelName = $this->normalizeLabelName($row->label_name ?? null);
+            if ($labelName && in_array($labelName, $removeLabels, true)) {
                 continue;
             }
 
-            $key = mb_strtolower($reason);
-            $idx = array_search($key, $labelKeys, true);
-            if ($idx !== false) {
-                $label = $labels[$idx];
-                $counts[$label] = ($counts[$label] ?? 0) + $count;
-            } else {
-                $other += $count;
-                $raw = trim((string) ($row->reason_label ?? ''));
-                if ($raw !== '') {
-                    $otherLabels[$raw] = ($otherLabels[$raw] ?? 0) + $count;
-                }
+            $reasonKey = $this->normalizeReasonLabelKey($row->reason_label ?? null);
+            if ($reasonKey === null) {
+                $counts['Unlabelled']++;
+                continue;
+            }
+
+            if (array_key_exists($reasonKey, $flowMap)) {
+                $label = $flowMap[$reasonKey];
+                $counts[$label] = ($counts[$label] ?? 0) + 1;
             }
         }
 
-        if ($unlabeled > 0) {
-            $counts['Unlabeled'] = $unlabeled;
-        }
-        if ($other > 0) {
-            $counts['Other'] = $other;
-        }
-
-        $colors = $this->reasonColorsForSprint($sprint);
+        $colors = $this->reasonColorsForSprint($sprint, $flowMap);
 
         return [
             'counts' => $counts,
             'colors' => $colors,
-            'other_labels' => $otherLabels,
+            'order' => $order,
         ];
     }
 
@@ -257,13 +235,25 @@ class RemakeStatsRepository
         return $name === '' ? null : $name;
     }
 
+    private function normalizeReasonLabelKey(?string $label): ?string
+    {
+        $name = trim((string) $label);
+        if ($name === '') {
+            return null;
+        }
+        $name = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $name) ?? $name;
+        $name = mb_strtolower(trim($name));
+
+        return $name === '' ? null : $name;
+    }
+
     private function normalizeReasonLabelDisplay(?string $label): ?string
     {
         $name = trim((string) $label);
         if ($name === '') {
             return null;
         }
-        $name = preg_replace('/^rm\\s+/i', '', $name) ?? $name;
+        $name = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $name) ?? $name;
         $name = trim($name);
 
         return $name === '' ? null : $name;
@@ -299,7 +289,7 @@ class RemakeStatsRepository
         return 'neutral';
     }
 
-    private function reasonColorsForSprint(Sprint $sprint): array
+    private function reasonColorsForSprint(Sprint $sprint, array $flowMap = []): array
     {
         $rows = DB::table('sprint_remakes')
             ->where('sprint_id', $sprint->id)
@@ -311,15 +301,76 @@ class RemakeStatsRepository
 
         $colors = [];
         foreach ($rows as $row) {
-            $label = $this->normalizeReasonLabelDisplay($row->reason_label ?? null);
-            if (!$label) {
+            $labelKey = $this->normalizeReasonLabelKey($row->reason_label ?? null);
+            if (!$labelKey) {
                 continue;
             }
-            if (!array_key_exists($label, $colors)) {
-                $colors[$label] = strtolower(trim((string) $row->reason_label_color));
+            if ($flowMap !== [] && !array_key_exists($labelKey, $flowMap)) {
+                continue;
+            }
+            $display = $flowMap !== [] ? $flowMap[$labelKey] : $this->normalizeReasonLabelDisplay($row->reason_label ?? null);
+            if (!$display) {
+                continue;
+            }
+            if (!array_key_exists($display, $colors)) {
+                $colors[$display] = strtolower(trim((string) $row->reason_label_color));
             }
         }
 
         return $colors;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function reasonFlow(): array
+    {
+        return [
+            'Programming Related',
+            'Punch',
+            'Folding',
+            'Welding',
+            'Assembly',
+            'Unlabelled',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function reasonFlowMap(): array
+    {
+        $map = [];
+        foreach ($this->reasonFlow() as $label) {
+            $key = $this->normalizeReasonLabelKey($label);
+            if ($key) {
+                $map[$key] = $label;
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function removeLabelNames(): array
+    {
+        return $this->normalizeLabelNames(
+            array_keys(config('trello_sync.remake_label_actions.remove', []))
+        );
+    }
+
+    public function isRemoveLabel(?string $labelName): bool
+    {
+        $labelName = $this->normalizeLabelName($labelName);
+        if (!$labelName) {
+            return false;
+        }
+        return in_array($labelName, $this->removeLabelNames(), true);
+    }
+
+    public function reasonKey(?string $label): ?string
+    {
+        return $this->normalizeReasonLabelKey($label);
     }
 }

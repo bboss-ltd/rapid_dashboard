@@ -238,6 +238,43 @@ High-level rules applied across the app:
 - Sprint selection: prefer exactly one `status=active` + open sprint, otherwise fall back to date window (`starts_at <= now <= ends_at`), otherwise no active sprint.
 - Snapshot flow: ensure a `start` snapshot exists; reconcile drift when policy allows; take periodic `ad_hoc` snapshots at configured cadence.
 - Remakes tracking: cards first seen in the Remakes list are persisted with timestamps; label actions can zero/restore points; reason labels are tracked for the pie chart.
+
+### Wallboard widgets (data collation)
+
+- Remakes card (counts + trends):
+  - Scope: active sprint only.
+  - “Requested” counts use `first_seen_at` and exclude any remakes with a remove-label (`trello_sync.remake_label_actions.remove`).
+  - “Accepted” counts use `first_seen_at` and only include remakes with a reason label (`trello_sync.remake_reason_labels`).
+  - Daily comparisons use calendar days (midnight–23:59:59 in app timezone).
+- Remake reasons pie:
+  - Scope: active sprint only.
+  - Date filter: `first_seen_at` must fall on “today” (midnight–23:59:59).
+  - Exclusions: any remake whose `label_name` matches a remove label is ignored.
+  - Categories are derived from `reason_label` (the Trello reason label) and displayed in factory-flow order:
+    1) Programming Related
+    2) Punch
+    3) Folding
+    4) Welding
+    5) Assembly
+    6) Unlabelled (when `reason_label` is null)
+  - The factory-flow order list lives in `app/Domains/Wallboard/Repositories/RemakeStatsRepository.php`.
+  - Labels are displayed without the `RM` prefix and use Trello label colors where available.
+- Machines card:
+  - Source: FourJaw current status endpoint.
+  - Duration text is derived from the status start timestamp.
+  - Status/idle color thresholds live in `config/wallboard.php`.
+- Utilisation pie:
+  - Source: FourJaw utilisation summary endpoint.
+  - Summary range is the last N working days (configurable).
+  - Per-machine utilisation is “today to now.”
+
+### Remake reasons admin page
+
+- Route: `/remakes/reasons`
+- Scope: active sprint only (if no active sprint is found, all sprints are included).
+- Date filter: `first_seen_at` falls on the selected day.
+- Exclusions: any remake whose `label_name` matches a remove label is ignored.
+- Categories and ordering match the wallboard remake reasons pie (factory-flow order).
 - Remakes stats: daily requested/accepted counts are based on first seen dates; sprint/month totals exclude “remove” labels.
 - Polling: Trello actions are incrementally ingested using cursors and applied to local records; delete actions mark remakes as removed.
 - Wallboard refresh: syncs and snapshots before reload so totals update on every refresh.
