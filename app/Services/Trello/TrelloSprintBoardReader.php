@@ -70,4 +70,14 @@ class TrelloSprintBoardReader
         }
         return null;
     }
+
+    public function resolveNumberValue(array $card, string $customFieldId): ?string
+    {
+        foreach (($card['customFieldItems'] ?? []) as $item) {
+            if (($item['idCustomField'] ?? null) !== $customFieldId) continue;
+            $value = $item['value']['number'] ?? null;
+            return is_string($value) ? $value : null;
+        }
+        return null;
+    }
 }
