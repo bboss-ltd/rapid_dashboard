@@ -174,12 +174,22 @@
                         <h3 class="font-semibold">Trello actions</h3>
                         <div class="text-xs text-gray-500">Applies changes directly on Trello.</div>
                     </div>
-                    <form method="post" action="{{ route('remakes.refresh.show', $remake) }}">
-                        @csrf
-                        <button id="refreshRemakeBtn" class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900">
-                            Refresh from Trello
-                        </button>
-                    </form>
+                    <div class="flex items-center gap-2">
+                        <form method="post" action="{{ route('remakes.refresh.show', $remake) }}">
+                            @csrf
+                            <button id="refreshRemakeBtn" class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900">
+                                Refresh from Trello
+                            </button>
+                        </form>
+                        @if($trelloActionsAllowed)
+                            <form method="post" action="{{ route('remakes.sync.estimate', $remake) }}">
+                                @csrf
+                                <button id="syncEstimateBtn" class="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900">
+                                    Sync estimate
+                                </button>
+                            </form>
+                        @endif
+                    </div>
                 </div>
 
                 @if($trelloActionsAllowed)
@@ -244,6 +254,17 @@
                 form.addEventListener('submit', () => {
                     btn.disabled = true;
                     btn.textContent = 'Refreshing...';
+                });
+            })();
+
+            (function () {
+                const btn = document.getElementById('syncEstimateBtn');
+                if (!btn) return;
+                const form = btn.closest('form');
+                if (!form) return;
+                form.addEventListener('submit', () => {
+                    btn.disabled = true;
+                    btn.textContent = 'Syncing...';
                 });
             })();
 

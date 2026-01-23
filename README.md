@@ -251,6 +251,7 @@ High-level rules applied across the app:
 - Sprint selection: prefer exactly one `status=active` + open sprint, otherwise fall back to date window (`starts_at <= now <= ends_at`), otherwise no active sprint.
 - Snapshot flow: ensure a `start` snapshot exists; reconcile drift when policy allows; take periodic `ad_hoc` snapshots at configured cadence.
 - Remakes tracking: cards first seen in the Remakes list are persisted with timestamps; label actions can zero/restore points; reason labels are tracked for the pie chart.
+  - Estimate precedence: if a remove label is present on a remake, its points override Trello’s estimation value; otherwise the Trello estimation value is used.
 
 ### Wallboard widgets (data collation)
 

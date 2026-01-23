@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\SprintRemakeUpdateRequest;
+use App\Domains\Estimation\EstimatePointsResolver;
+use App\Services\Trello\TrelloSprintBoardReader;
 use App\Domains\Wallboard\Repositories\RemakeStatsRepository;
 use App\Models\Sprint;
 use App\Models\SprintRemake;
@@ -350,6 +352,80 @@ class SprintRemakeController extends Controller
         return redirect()
             ->route('remakes.show', $remake)
             ->with('status', 'Trello card refreshed.');
+    }
+
+    public function syncEstimate(
+        Request $request,
+        SprintRemake $remake,
+        TrelloSprintBoardReader $reader,
+        EstimatePointsResolver $pointsResolver,
+    ): RedirectResponse {
+        if (!$this->trelloActionsAllowed($request)) {
+            return redirect()
+                ->route('remakes.show', $remake)
+                ->with('status', 'You are not authorised to sync estimates from Trello.');
+        }
+
+        if (!$remake->trello_card_id) {
+            return redirect()
+                ->route('remakes.show', $remake)
+                ->with('status', 'Missing Trello card id.');
+        }
+
+        $boardId = $remake->sprint?->trello_board_id;
+        if (!$boardId) {
+            return redirect()
+                ->route('remakes.show', $remake)
+                ->with('status', 'Missing Trello board id for this remake.');
+        }
+
+        $customFields = $reader->fetchCustomFields($boardId);
+        $lookup = $reader->buildDropdownLookup($customFields);
+        $estimationFieldId = $reader->findCustomFieldIdByName($customFields, 'Estimation');
+
+        if (!$estimationFieldId) {
+            return redirect()
+                ->route('remakes.show', $remake)
+                ->with('status', 'Estimation custom field not found on Trello board.');
+        }
+
+        $card = $reader->fetchCard($remake->trello_card_id);
+        $label = $reader->resolveDropdownText($card, $estimationFieldId, $lookup);
+        $points = $pointsResolver->pointsForLabel($label);
+
+        $removeMap = $this->normalizeLabelPoints(config('trello_sync.remake_label_actions.remove', []));
+        $removeName = $this->normalizeLabel((string) ($remake->label_name ?? ''));
+        $hasRemoveLabel = $removeName !== '' && array_key_exists($removeName, $removeMap);
+
+        if ($hasRemoveLabel) {
+            $points = $remake->label_points ?? $removeMap[$removeName] ?? $points;
+        }
+
+        $remake->estimate_points = $points;
+        $remake->last_seen_at = Carbon::now();
+        $remake->save();
+
+        if ($remake->card) {
+            $name = $card['name'] ?? null;
+            $activity = $card['dateLastActivity'] ?? null;
+            $updates = [];
+            if (is_string($name) && $name !== '') {
+                $updates['name'] = $name;
+            }
+            if (is_string($activity) && $activity !== '') {
+                $updates['last_activity_at'] = Carbon::parse($activity);
+            }
+            if (!empty($updates)) {
+                $remake->card->fill($updates)->save();
+            }
+        }
+
+        $labelText = $label ?: 'none';
+        $pointsText = $points !== null ? $points : '—';
+
+        return redirect()
+            ->route('remakes.show', $remake)
+            ->with('status', "Estimate synced from Trello (label: {$labelText}, points: {$pointsText}).");
     }
 
     public function updateTrello(Request $request, SprintRemake $remake, TrelloClient $trello): RedirectResponse
