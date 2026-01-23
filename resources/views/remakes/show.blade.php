@@ -149,12 +149,25 @@
                                 @endif
                             </div>
                         </div>
-                        <div class="md:col-span-2 rounded-lg border border-gray-100 dark:border-gray-700 p-4">
+                        <div class="rounded-lg border border-gray-100 dark:border-gray-700 p-4">
                             <div class="text-gray-500">Labels</div>
                             <div class="font-medium">
                                 @php($labels = $trelloCard['labels'] ?? [])
                                 @if(is_array($labels) && count($labels))
                                     {{ collect($labels)->pluck('name')->filter()->join(', ') }}
+                                @else
+                                    —
+                                @endif
+                            </div>
+                        </div>
+                        <div class="rounded-lg border border-gray-100 dark:border-gray-700 p-4">
+                            <div class="text-gray-500">Trello estimate</div>
+                            <div class="font-medium">
+                                @if(!empty($trelloEstimate))
+                                    {{ $trelloEstimate['label'] ?? '—' }}
+                                    @if(isset($trelloEstimate['points']))
+                                        <span class="text-gray-500">({{ $trelloEstimate['points'] }})</span>
+                                    @endif
                                 @else
                                     —
                                 @endif

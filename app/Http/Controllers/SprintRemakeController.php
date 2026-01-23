@@ -234,10 +234,17 @@ class SprintRemakeController extends Controller
         ]);
     }
 
-    public function show(Request $request, SprintRemake $remake, TrelloClient $trello): View
+    public function show(
+        Request $request,
+        SprintRemake $remake,
+        TrelloClient $trello,
+        TrelloSprintBoardReader $reader,
+        EstimatePointsResolver $pointsResolver,
+    ): View
     {
         $remake->load(['sprint', 'card']);
         $trelloCard = null;
+        $trelloEstimate = null;
         $trelloActionsAllowed = $this->trelloActionsAllowed($request);
 
         if ($remake->trello_card_id) {
@@ -246,6 +253,7 @@ class SprintRemakeController extends Controller
                 $trelloCard = Cache::remember($cacheKey, now()->addMinutes(5), function () use ($trello, $remake) {
                     return $trello->get("/cards/{$remake->trello_card_id}", [
                         'fields' => 'name,url,labels,idList,dateLastActivity',
+                        'customFieldItems' => 'true',
                     ]);
                 });
             } catch (\Throwable) {
@@ -253,9 +261,28 @@ class SprintRemakeController extends Controller
             }
         }
 
+        if ($trelloCard && $remake->sprint?->trello_board_id) {
+            try {
+                $customFields = $reader->fetchCustomFields($remake->sprint->trello_board_id);
+                $lookup = $reader->buildDropdownLookup($customFields);
+                $estimationFieldId = $reader->findCustomFieldIdByName($customFields, 'Estimation');
+                if ($estimationFieldId) {
+                    $label = $reader->resolveDropdownText($trelloCard, $estimationFieldId, $lookup);
+                    $points = $pointsResolver->pointsForLabel($label);
+                    $trelloEstimate = [
+                        'label' => $label,
+                        'points' => $points,
+                    ];
+                }
+            } catch (\Throwable) {
+                $trelloEstimate = null;
+            }
+        }
+
         return view('remakes.show', [
             'remake' => $remake,
             'trelloCard' => $trelloCard,
+            'trelloEstimate' => $trelloEstimate,
             'trelloActionsAllowed' => $trelloActionsAllowed,
         ]);
     }
@@ -472,6 +499,11 @@ class SprintRemakeController extends Controller
 
         $trello->put("/cards/{$remake->trello_card_id}", $payload);
         Cache::forget("trello.card.{$remake->trello_card_id}");
+
+        if (!empty($payload['name']) && $remake->card) {
+            $remake->card->name = $payload['name'];
+            $remake->card->save();
+        }
 
         return redirect()
             ->route('remakes.show', $remake)
