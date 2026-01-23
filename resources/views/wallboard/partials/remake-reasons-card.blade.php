@@ -2,7 +2,7 @@
     <div class="cardHeader">
         <div>
             <div class="cardTitle">Remake reasons</div>
-            <div class="cardSub">Share of current remakes</div>
+            <div class="cardSub">Distribution of remake causality</div>
         </div>
     </div>
 
