@@ -325,14 +325,22 @@ class RemakeStatsRepository
      */
     public function reasonFlow(): array
     {
-        return [
-            'Programming Related',
-            'Punch',
-            'Folding',
-            'Welding',
-            'Assembly',
-            'Unlabelled',
-        ];
+        $labels = array_values(array_filter(array_map(function ($label) {
+            return $this->normalizeReasonLabelDisplay($label);
+        }, config('trello_sync.remake_reason_labels', []))));
+
+        $unique = [];
+        foreach ($labels as $label) {
+            $key = mb_strtolower(trim((string) $label));
+            if ($key === '' || isset($unique[$key])) {
+                continue;
+            }
+            $unique[$key] = $label;
+        }
+
+        $flow = array_values($unique);
+        $flow[] = 'Unlabelled';
+        return $flow;
     }
 
     /**

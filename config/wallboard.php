@@ -5,6 +5,10 @@ return [
     'basic_auth_enabled' => env('WALLBOARD_BASIC_AUTH_ENABLED', false),
     'basic_auth_user' => env('WALLBOARD_BASIC_AUTH_USER', 'wallboard'),
     'basic_auth_pass' => env('WALLBOARD_BASIC_AUTH_PASS', ''),
+    'management' => [
+        'ip_allowlist_enabled' => env('WALLBOARD_MANAGEMENT_IP_ALLOWLIST_ENABLED', false),
+        'ip_allowlist' => array_values(array_filter(array_map('trim', explode(',', env('WALLBOARD_MANAGEMENT_IP_ALLOWLIST', ''))))),
+    ],
 
     'burndown' => [
         // Working days in ISO format: 1=Mon ... 7=Sun

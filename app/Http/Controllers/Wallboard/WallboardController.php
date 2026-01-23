@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Wallboard;
 
 use App\Domains\Wallboard\Actions\BuildWallboardViewDataAction;
+use App\Domains\Wallboard\Actions\BuildManagementWallboardViewDataAction;
 use App\Domains\Wallboard\Actions\ResolveWallboardSprintAction;
 use App\Domains\Wallboard\Actions\SyncWallboardAction;
 use App\Http\Controllers\Controller;
 use App\Models\Sprint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class WallboardController extends Controller
 {
@@ -93,6 +95,51 @@ class WallboardController extends Controller
             'message' => 'Sync complete.',
             'snapshot_id' => $result->snapshot->id,
             'reconcile_snapshot_id' => $result->reconcileSnapshot?->id,
+        ]);
+    }
+
+    public function management(
+        Request $request,
+        BuildManagementWallboardViewDataAction $buildViewData,
+    ) {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $highlight = $request->input('highlight', 'max');
+        $highlight = in_array($highlight, ['max', 'delta'], true) ? $highlight : 'max';
+        $deltaDays = max(1, (int) $request->input('delta_days', 1));
+
+        $startDate = is_string($startDate) && $startDate !== '' ? $startDate : null;
+        $endDate = is_string($endDate) && $endDate !== '' ? $endDate : null;
+
+        if ($startDate && !$endDate) {
+            $start = Carbon::createFromFormat('Y-m-d', $startDate)->startOfDay();
+            $end = $start->copy()->endOfDay();
+        } elseif ($endDate && !$startDate) {
+            $start = Carbon::createFromFormat('Y-m-d', $endDate)->startOfDay();
+            $end = $start->copy()->endOfDay();
+        } elseif ($startDate && $endDate) {
+            $start = Carbon::createFromFormat('Y-m-d', $startDate)->startOfDay();
+            $end = Carbon::createFromFormat('Y-m-d', $endDate)->endOfDay();
+        } else {
+            $start = now()->subDays(6)->startOfDay();
+            $end = now()->endOfDay();
+        }
+
+        $perPage = (int) $request->input('per_page', 7);
+        $perPage = in_array($perPage, [7, 14, 30], true) ? $perPage : 7;
+        $page = max(1, (int) $request->input('page', 1));
+
+        $queryParams = $request->query();
+
+        $viewData = $buildViewData->run($start, $end, $perPage, $page, $queryParams, $highlight, $deltaDays);
+
+        return view('wallboard.management', [
+            ...$viewData,
+            'start' => $start,
+            'end' => $end,
+            'perPage' => $perPage,
+            'highlight' => $highlight,
+            'deltaDays' => $deltaDays,
         ]);
     }
 }
