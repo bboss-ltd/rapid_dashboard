@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Wallboard;
 
 use App\Domains\Wallboard\Actions\BuildWallboardViewDataAction;
+use App\Domains\Wallboard\Actions\BuildManagementWallboardViewDataAction;
 use App\Domains\Wallboard\Actions\ResolveWallboardSprintAction;
 use App\Domains\Wallboard\Actions\SyncWallboardAction;
 use App\Http\Controllers\Controller;
 use App\Models\Sprint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class WallboardController extends Controller
 {
@@ -93,6 +95,43 @@ class WallboardController extends Controller
             'message' => 'Sync complete.',
             'snapshot_id' => $result->snapshot->id,
             'reconcile_snapshot_id' => $result->reconcileSnapshot?->id,
+        ]);
+    }
+
+    public function management(
+        Request $request,
+        BuildManagementWallboardViewDataAction $buildViewData,
+    ) {
+        $date = $request->input('date');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        if (is_string($date) && $date !== '') {
+            $start = Carbon::createFromFormat('Y-m-d', $date)->startOfDay();
+            $end = $start->copy()->endOfDay();
+        } else {
+            $start = is_string($startDate) && $startDate !== ''
+                ? Carbon::createFromFormat('Y-m-d', $startDate)->startOfDay()
+                : now()->subDays(6)->startOfDay();
+            $end = is_string($endDate) && $endDate !== ''
+                ? Carbon::createFromFormat('Y-m-d', $endDate)->endOfDay()
+                : now()->endOfDay();
+        }
+
+        $perPage = (int) $request->input('per_page', 7);
+        $perPage = in_array($perPage, [7, 14, 30], true) ? $perPage : 7;
+        $page = max(1, (int) $request->input('page', 1));
+
+        $queryParams = $request->query();
+
+        $viewData = $buildViewData->run($start, $end, $perPage, $page, $queryParams);
+
+        return view('wallboard.management', [
+            ...$viewData,
+            'start' => $start,
+            'end' => $end,
+            'date' => $date,
+            'perPage' => $perPage,
         ]);
     }
 }

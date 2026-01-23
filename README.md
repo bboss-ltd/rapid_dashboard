@@ -96,6 +96,16 @@ Wallboard shows:
 
 Authentication is currently disabled for the wallboard routes.
 
+### Management wallboard
+
+Route: `/wallboard/management` (public by default).
+
+Optional IP allowlist:
+- Set `WALLBOARD_MANAGEMENT_IP_ALLOWLIST_ENABLED=true`
+- Set `WALLBOARD_MANAGEMENT_IP_ALLOWLIST=1.2.3.4,5.6.7.8`
+
+This uses a separate allowlist from the main wallboard.
+
 ## Release/revision badge
 
 The sidebar and wallboard show a revision and published timestamp.
@@ -176,6 +186,9 @@ Associated env vars:
 - `WALLBOARD_UTILISATION_SHIFTS` (optional, default on_shift)
 - `WALLBOARD_UTILISATION_MACHINE_SHIFTS` (optional, default on_shift)
 - `WALLBOARD_MACHINES_SHOW_UTILISATION` (optional, default true)
+- `WALLBOARD_MANAGEMENT_IP_ALLOWLIST_ENABLED` (optional, default false)
+- `WALLBOARD_MANAGEMENT_IP_ALLOWLIST` (optional, comma-separated IPs)
+- `FOURJAW_ASSETS_PATH` (optional)
 
 Legacy env vars like `TRELLO_CF_SPRINT_STATUS` are no longer used; prefer the name-based registry field envs above.
 

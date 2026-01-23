@@ -138,6 +138,67 @@ class FourJawService
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getAssets(): array
+    {
+        $response = $this->fourjaw->get(config('fourjaw.endpoints.assets'), [
+            'page_size' => 500,
+        ]);
+
+        $items = Arr::get($response, 'items', $response);
+        return is_array($items) ? $items : [];
+    }
+
+    /**
+     * @return array{assets: array<string, array<string, mixed>>, parents: array<string, array<string, mixed>>}
+     */
+    public function getAssetMaps(): array
+    {
+        $items = $this->getAssets();
+
+        $assets = [];
+        $parents = [];
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $id = Arr::get($item, 'id');
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+
+            $displayName = (string) (Arr::get($item, 'display_name')
+                ?? Arr::get($item, 'name')
+                ?? '');
+            $parentId = Arr::get($item, 'parent_id');
+            if (!is_string($parentId) || $parentId === '') {
+                $parentId = Arr::get($item, 'parent.id');
+            }
+            $parentName = (string) (Arr::get($item, 'parent_display_name')
+                ?? Arr::get($item, 'parent.display_name')
+                ?? '');
+
+            $assets[$id] = [
+                'id' => $id,
+                'display_name' => trim($displayName) !== '' ? $displayName : null,
+                'parent_id' => is_string($parentId) ? $parentId : null,
+                'parent_display_name' => trim($parentName) !== '' ? $parentName : null,
+            ];
+
+            if (is_string($parentId) && $parentId !== '') {
+                $parents[$parentId] = [
+                    'id' => $parentId,
+                    'display_name' => trim($parentName) !== '' ? $parentName : null,
+                ];
+            }
+        }
+
+        return ['assets' => $assets, 'parents' => $parents];
+    }
+
+    /**
      * @param array<int, string> $machineIds
      * @return array<string, mixed>
      */

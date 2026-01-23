@@ -26,6 +26,9 @@ require __DIR__.'/settings.php';
  */
 Route::get('/wallboard', [WallboardController::class, 'index'])->name('wallboard.index');
 Route::get('/wallboard/sprints/{sprint}', [WallboardController::class, 'sprint'])->name('wallboard.sprint');
+Route::get('/wallboard/management', [WallboardController::class, 'management'])
+    ->middleware('wallboard.management')
+    ->name('wallboard.management');
 
 /**
  * Authenticated admin area
