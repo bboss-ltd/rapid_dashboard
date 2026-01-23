@@ -24,6 +24,11 @@
                             <option value="range" @selected($filterMode === 'range')>Date range</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm text-gray-600 dark:text-gray-300">Search</label>
+                        <input type="text" name="search" value="{{ $search ?? '' }}" placeholder="Card, label, Trello id"
+                               class="mt-1 rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900">
+                    </div>
                     <div class="{{ $filterMode === 'sprint' ? '' : 'hidden' }}" data-filter-field="sprint">
                         <label class="block text-sm text-gray-600 dark:text-gray-300">Sprint</label>
                         <select name="sprint_id" class="mt-1 rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900">
@@ -120,6 +125,13 @@
                                     @else
                                         {{ $remake->trello_card_id }}
                                     @endif
+                                    @if($remake->trello_card_id)
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            <a class="text-blue-600 hover:underline" href="{{ 'https://trello.com/c/'.$remake->trello_card_id }}" target="_blank" rel="noreferrer">
+                                                Open Trello
+                                            </a>
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3">
                                     {{ $label ?: '—' }}
@@ -192,6 +204,7 @@
                 const dayWrap = filterForm.querySelector('[data-filter-field="day"]');
                 const rangeStartWrap = filterForm.querySelector('[data-filter-field="range-start"]');
                 const rangeEndWrap = filterForm.querySelector('[data-filter-field="range-end"]');
+                const searchInput = filterForm.querySelector('input[name="search"]');
 
                 function applyMode(value) {
                     if (sprintWrap) sprintWrap.classList.toggle('hidden', value !== 'sprint');
@@ -214,6 +227,12 @@
                         applyWrap.classList.remove('hidden');
                     }
                 });
+
+                if (searchInput && applyWrap) {
+                    searchInput.addEventListener('input', () => {
+                        applyWrap.classList.remove('hidden');
+                    });
+                }
             })();
         </script>
     @endpush

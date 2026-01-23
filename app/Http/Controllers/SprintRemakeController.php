@@ -30,6 +30,7 @@ class SprintRemakeController extends Controller
         $sort = $request->input('sort');
         $direction = strtolower((string) $request->input('dir', 'asc'));
         $direction = in_array($direction, ['asc', 'desc'], true) ? $direction : 'asc';
+        $search = trim((string) $request->input('search', ''));
 
         $query = SprintRemake::query()
             ->with(['sprint', 'card'])
@@ -40,6 +41,17 @@ class SprintRemakeController extends Controller
             $query->where('sprint_id', $sprintId);
         }
         $query->whereNull('removed_at');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('trello_card_id', 'like', "%{$search}%")
+                    ->orWhere('label_name', 'like', "%{$search}%")
+                    ->orWhere('reason_label', 'like', "%{$search}%")
+                    ->orWhereHas('card', function ($card) use ($search) {
+                        $card->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
 
         $date = $request->input('date');
         $startDate = $request->input('start_date');
@@ -93,6 +105,7 @@ class SprintRemakeController extends Controller
             'sort' => $sort,
             'dir' => $direction,
             'filterMode' => $filterMode,
+            'search' => $search,
         ]);
     }
 
@@ -100,6 +113,7 @@ class SprintRemakeController extends Controller
     {
         $dateInput = $request->input('date');
         $day = Carbon::today();
+        $search = trim((string) $request->input('search', ''));
         if (is_string($dateInput) && $dateInput !== '') {
             try {
                 $day = Carbon::createFromFormat('Y-m-d', $dateInput)->startOfDay();
@@ -122,6 +136,17 @@ class SprintRemakeController extends Controller
         }
 
         $query->whereNull('removed_at');
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('trello_card_id', 'like', "%{$search}%")
+                    ->orWhere('label_name', 'like', "%{$search}%")
+                    ->orWhere('reason_label', 'like', "%{$search}%")
+                    ->orWhereHas('card', function ($card) use ($search) {
+                        $card->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
 
         $remakes = $query->orderByDesc('first_seen_at')->get();
 
@@ -203,6 +228,7 @@ class SprintRemakeController extends Controller
             'hasNext' => $hasNext,
             'prevDay' => $prevDay,
             'nextDay' => $nextDay,
+            'search' => $search,
         ]);
     }
 
