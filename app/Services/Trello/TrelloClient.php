@@ -65,4 +65,39 @@ class TrelloClient
     {
         return $this->http->delete($uri, $query)->throw()->json();
     }
+
+    /**
+     * @param array<int, string> $urls
+     * @return array<int, array<string, mixed>>
+     */
+    public function batch(array $urls): array
+    {
+        $urls = array_values(array_filter(array_map('trim', $urls)));
+        if ($urls === []) {
+            return [];
+        }
+
+        $results = [];
+        $chunks = array_chunk($urls, 10);
+
+        foreach ($chunks as $chunk) {
+            $response = $this->get('/batch', [
+                'urls' => implode(',', $chunk),
+            ]);
+
+            if (!is_array($response)) {
+                continue;
+            }
+
+            foreach ($response as $idx => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $entry['url'] = $chunk[$idx] ?? null;
+                $results[] = $entry;
+            }
+        }
+
+        return $results;
+    }
 }

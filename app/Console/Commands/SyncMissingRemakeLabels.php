@@ -50,13 +50,15 @@ class SyncMissingRemakeLabels extends Command
         $now = Carbon::now();
         $updated = 0;
 
+        $labelLookup = $this->fetchLabelsBatch($trello, $remakes->pluck('trello_card_id')->filter()->all());
+
         foreach ($remakes as $remake) {
             if (!$remake->trello_card_id) {
                 $this->warn("Remake {$remake->id} missing Trello card id; skipping.");
                 continue;
             }
 
-            $labels = $this->fetchCardLabels($trello, $remake->trello_card_id);
+            $labels = $labelLookup[$remake->trello_card_id] ?? [];
             if ($labels === []) {
                 continue;
             }
@@ -109,19 +111,45 @@ class SyncMissingRemakeLabels extends Command
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function fetchCardLabels(TrelloClient $trello, string $cardId): array
+    private function fetchLabelsBatch(TrelloClient $trello, array $cardIds): array
     {
-        try {
-            $card = $trello->get("/cards/{$cardId}", [
-                'fields' => 'labels',
-            ]);
-        } catch (\Throwable $e) {
-            $this->warn("Trello fetch failed for card {$cardId}: {$e->getMessage()}");
+        $cardIds = array_values(array_filter(array_map('trim', $cardIds)));
+        if ($cardIds === []) {
             return [];
         }
 
-        $labels = Arr::get($card, 'labels', []);
-        return is_array($labels) ? $labels : [];
+        $results = [];
+        $urls = array_map(function ($id) {
+            return "/cards/{$id}?fields=labels";
+        }, $cardIds);
+
+        try {
+            $batch = $trello->batch($urls);
+        } catch (\Throwable $e) {
+            $this->warn("Trello batch fetch failed: {$e->getMessage()}");
+            return [];
+        }
+
+        foreach ($batch as $entry) {
+            $url = Arr::get($entry, 'url');
+            $code = Arr::get($entry, 'code');
+            $body = Arr::get($entry, 'body');
+            if (!is_string($url) || (int) $code !== 200 || !is_array($body)) {
+                continue;
+            }
+
+            if (preg_match('/\\/cards\\/([^\\?]+)/', $url, $matches) !== 1) {
+                continue;
+            }
+            $cardId = $matches[1] ?? null;
+            if (!$cardId) {
+                continue;
+            }
+            $labels = Arr::get($body, 'labels', []);
+            $results[$cardId] = is_array($labels) ? $labels : [];
+        }
+
+        return $results;
     }
 
     /**

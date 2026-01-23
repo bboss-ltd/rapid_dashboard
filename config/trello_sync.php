@@ -103,6 +103,34 @@ return [
         'RM Dispatch'
     ],
 
+    // Trello card cover options for manual edits in the admin UI.
+    'card_cover_colors' => [
+        'none',
+        'pink',
+        'yellow',
+        'lime',
+        'blue',
+        'black',
+        'orange',
+        'red',
+        'purple',
+        'sky',
+        'green',
+    ],
+    'card_cover_sizes' => [
+        'normal',
+        'full',
+    ],
+    'card_cover_brightness' => [
+        'light',
+        'dark',
+    ],
+
+    // Users allowed to access Trello editing tools in the Remakes UI.
+    'trello_actions_allowed_emails' => [
+        config('auth.admin_user.email'),
+    ],
+
     // How many actions to request per poll
     'poll_limit' => 200,
 

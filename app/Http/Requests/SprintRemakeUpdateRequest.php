@@ -14,11 +14,13 @@ class SprintRemakeUpdateRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'estimate_points' => ['nullable', 'integer', 'min:0'],
-            'label_name' => ['nullable', 'string', 'max:255'],
-            'label_points' => ['nullable', 'integer', 'min:0'],
-            'reason_label' => ['nullable', 'string', 'max:255'],
-            'reason_label_color' => ['nullable', 'string', 'max:255'],
+            'remake_label' => ['nullable', 'string', 'max:255'],
+            'points' => ['nullable', 'integer', 'min:0'],
         ];
+    }
+
+    public function withValidator($validator): void
+    {
+        // No-op for now. Validation handled in controller based on config lists.
     }
 }

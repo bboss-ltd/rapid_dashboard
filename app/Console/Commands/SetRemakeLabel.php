@@ -31,6 +31,11 @@ class SetRemakeLabel extends Command
             return Command::FAILURE;
         }
 
+        if ($remake->removed_at) {
+            $this->error('Remake was removed; refusing to set labels.');
+            return Command::FAILURE;
+        }
+
         $sprint = Sprint::query()->find($remake->sprint_id);
         if (!$sprint || !$sprint->trello_board_id) {
             $this->error('Sprint or Trello board id missing for this remake.');
