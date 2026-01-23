@@ -254,6 +254,8 @@ High-level rules applied across the app:
 - `php artisan trello:poc {boardId}` (debug/proof-of-concept)
 - `php artisan sprint:create {name} {boardId} {startsAt} {endsAt} {doneListIds*}` (legacy helper)
 - `php artisan sprint:configure-close {sprintId} {controlCardId} {statusFieldId} {closedOptionId}` (legacy helper)
+- `php artisan trello:remake-labels:sync-missing {--sprint=} {--limit=}` (backfill missing remake labels from Trello)
+- `php artisan trello:remake-labels:set {remakeId} {label}` (set a remake label on Trello + local)
 
 ## Data stored locally
 

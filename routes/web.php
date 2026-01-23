@@ -6,6 +6,7 @@ use App\Http\Controllers\Reports\SprintBurndownController;
 use App\Http\Controllers\Reports\SprintRolloverController;
 use App\Http\Controllers\Reports\SprintSummaryController;
 use App\Http\Controllers\Reports\SprintVelocityController;
+use App\Http\Controllers\SprintRemakeController;
 use App\Http\Controllers\SprintController;
 use App\Http\Controllers\SprintSnapshotController;
 use App\Http\Controllers\Wallboard\WallboardController;
@@ -36,6 +37,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Nested snapshots under sprint (index/show)
     Route::get('/sprints/{sprint}/snapshots', [SprintSnapshotController::class, 'index'])->name('sprints.snapshots.index');
     Route::get('/sprints/{sprint}/snapshots/{snapshot}', [SprintSnapshotController::class, 'show'])->name('sprints.snapshots.show');
+
+    // Remakes admin
+    Route::resource('remakes', SprintRemakeController::class)->only(['index', 'show', 'update']);
 
     // Reports UI pages
     Route::get('/reports', [ReportUiController::class, 'index'])->name('reports.index');

@@ -35,4 +35,9 @@ class SprintRemake extends Model
     {
         return $this->belongsTo(Card::class);
     }
+
+    public function sprint(): BelongsTo
+    {
+        return $this->belongsTo(Sprint::class);
+    }
 }

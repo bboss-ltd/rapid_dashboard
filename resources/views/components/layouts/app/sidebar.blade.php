@@ -20,6 +20,10 @@
                         {{ __('Sprints') }}
                     </flux:sidebar.item>
 
+                    <flux:sidebar.item icon="wrench" :href="route('remakes.index')" :current="request()->routeIs('remakes.*')" wire:navigate>
+                        {{ __('Remakes') }}
+                    </flux:sidebar.item>
+
                     <flux:sidebar.item icon="chart-bar" :href="route('reports.index')" :current="request()->routeIs('reports.*')" wire:navigate>
                         {{ __('Reports') }}
                     </flux:sidebar.item>
