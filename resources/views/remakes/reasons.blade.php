@@ -23,13 +23,18 @@
                             <label class="block text-sm text-gray-600 dark:text-gray-300">Day</label>
                             <input type="date" name="date" value="{{ $day->toDateString() }}" class="mt-1 rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900">
                         </div>
+                        <div>
+                            <label class="block text-sm text-gray-600 dark:text-gray-300">Search</label>
+                            <input type="text" name="search" value="{{ $search ?? '' }}" placeholder="Card, label, Trello id"
+                                   class="mt-1 rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900">
+                        </div>
                         <div class="flex items-center gap-2 mt-6">
                             <input type="checkbox" id="showRemoved" name="show_removed" value="1" class="rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900"
                                    @checked($showRemoved)>
                             <label for="showRemoved" class="text-sm text-gray-600 dark:text-gray-300">Show removed</label>
                         </div>
-                        <div class="hidden">
-                            <button class="px-4 py-2 rounded bg-blue-600 text-white text-sm">Filter</button>
+                        <div class="mt-6">
+                            <button class="px-4 py-2 rounded bg-blue-600 text-white text-sm">Apply filter</button>
                         </div>
                     </form>
                     <div class="ml-auto text-sm text-gray-500">
@@ -109,6 +114,13 @@
                                             @else
                                                 {{ $remake->trello_card_id }}
                                             @endif
+                                            @if($remake->trello_card_id)
+                                                <div class="text-xs text-gray-500 mt-1">
+                                                    <a class="text-blue-600 hover:underline" href="{{ 'https://trello.com/c/'.$remake->trello_card_id }}" target="_blank" rel="noreferrer">
+                                                        Open Trello
+                                                    </a>
+                                                </div>
+                                            @endif
                                         </td>
                                         <td class="px-4 py-3">
                                             {{ $remake->reason_label ?? '—' }}
@@ -169,6 +181,13 @@
                                             @else
                                                 {{ $remake->trello_card_id }}
                                             @endif
+                                            @if($remake->trello_card_id)
+                                                <div class="text-xs text-gray-500 mt-1">
+                                                    <a class="text-blue-600 hover:underline" href="{{ 'https://trello.com/c/'.$remake->trello_card_id }}" target="_blank" rel="noreferrer">
+                                                        Open Trello
+                                                    </a>
+                                                </div>
+                                            @endif
                                         </td>
                                         <td class="px-4 py-3">
                                             {{ $remake->label_name ?? '—' }}
@@ -198,7 +217,7 @@
             (function () {
                 const filterForm = document.getElementById('reasonFilters');
                 if (!filterForm) return;
-                const inputs = filterForm.querySelectorAll('input');
+                const inputs = filterForm.querySelectorAll('input[type="date"], input[type="checkbox"]');
                 inputs.forEach((el) => {
                     el.addEventListener('change', () => {
                         filterForm.submit();
