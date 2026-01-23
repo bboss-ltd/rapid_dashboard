@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SprintRemake extends Model
 {
@@ -29,4 +30,14 @@ class SprintRemake extends Model
         'label_set_at' => 'datetime',
         'reason_set_at' => 'datetime',
     ];
+
+    public function card(): BelongsTo
+    {
+        return $this->belongsTo(Card::class);
+    }
+
+    public function sprint(): BelongsTo
+    {
+        return $this->belongsTo(Sprint::class);
+    }
 }

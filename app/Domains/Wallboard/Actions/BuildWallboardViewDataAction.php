@@ -31,7 +31,9 @@ final class BuildWallboardViewDataAction
         $series = $this->burndownQuery->run($sprint, $types);
         $latestPoint = $series->last();
         $remakeStatsData = $this->remakeStats->buildRemakeStats($sprint, $types);
-        $remakeReasonStats = $this->remakeStats->buildRemakeReasonStats($sprint);
+        $reasonStart = now()->startOfDay();
+        $reasonEnd = now()->endOfDay();
+        $remakeReasonStats = $this->remakeStats->buildRemakeReasonStats($sprint, $reasonStart, $reasonEnd);
         $machines = [];
         $utilisationSummary = [
             'total_percent' => null,

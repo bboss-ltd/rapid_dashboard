@@ -61,6 +61,21 @@ return [
         'removeLabelFromCard',
     ],
 
+    /******************************
+     * TRELLO REMAKE LABEL HANDLING
+     * ****************************
+     *
+     * There are two separate concepts here driven by a common functionality on trello's side.
+     *
+     * A remake label can represent different outcomes. A label that appears in the 'remake_reason_labels' list
+     * represents an 'accepted' remake and so the amount of work required to complete it should be defined on the
+     * card and therefore cannot be standardised. The label itself WILL need to affect the Remake Reasons pie-chart
+     *
+     * A remake label that appears in the 'remake_label_actions.remove' list is essentially telling us to disregard
+     * any impacts to the Remake Reasons pie-chart and any of the overall remake figures BUT may have required some
+     * work by the team to handle the request - which we have standardised with the story points defined.
+     */
+
     // Labels that influence remake tracking when added/removed on cards.
     // Map label name => points override (0 disables points for that remake).
     'remake_label_actions' => [
@@ -86,6 +101,34 @@ return [
         'RM Spraying',
         'RM Assembly',
         'RM Dispatch'
+    ],
+
+    // Trello card cover options for manual edits in the admin UI.
+    'card_cover_colors' => [
+        'none',
+        'pink',
+        'yellow',
+        'lime',
+        'blue',
+        'black',
+        'orange',
+        'red',
+        'purple',
+        'sky',
+        'green',
+    ],
+    'card_cover_sizes' => [
+        'normal',
+        'full',
+    ],
+    'card_cover_brightness' => [
+        'light',
+        'dark',
+    ],
+
+    // Users allowed to access Trello editing tools in the Remakes UI.
+    'trello_actions_allowed_emails' => [
+        config('auth.admin_user.email'),
     ],
 
     // How many actions to request per poll
