@@ -42,7 +42,7 @@ return [
     ],
 
     'fourjaw' => [
-        'base_url' => env('FOURJAW_BASE_URL', 'https://api.fourjaw.com/v2/'),
+        'base_url' => env('FOURJAW_BASE_URL', 'https://rapidaccessltd.fourjaw.app/rest/api/v0.1'),
         'token' => env('FOURJAW_API_KEY'),
         'email' => env('FOURJAW_USER_EMAIL', 'email@example.com'),
         'password' => env('FOURJAW_USER_PASSWORD', 'password'),

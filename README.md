@@ -162,6 +162,15 @@ Associated env vars:
 - `APP_RELEASED_AT` (optional ISO8601)
 - `APP_REVISION` (optional)
 - `APP_RELEASED_AT` (optional ISO8601)
+- `FOURJAW_BASE_URL`
+- `FOURJAW_USER_EMAIL`
+- `FOURJAW_USER_PASSWORD`
+- `FOURJAW_REMEMBER_ME`
+- `FOURJAW_LOGIN_PATH` (optional)
+- `FOURJAW_CHECK_AUTH_PATH` (optional)
+- `FOURJAW_CURRENT_STATUS_PATH` (optional)
+- `FOURJAW_AUTH_CACHE_TTL` (optional, minutes)
+- `FOURJAW_STATUS_PAGE_SIZE` (optional)
 
 Legacy env vars like `TRELLO_CF_SPRINT_STATUS` are no longer used; prefer the name-based registry field envs above.
 
@@ -178,6 +187,13 @@ Remake labels can influence both the comparison stats and the reason breakdown:
 
 When labels are added/removed in Trello, polling picks up the action and updates the local `sprint_remakes` record accordingly.
 If your Trello reason labels are prefixed with `RM `, the wallboard strips that prefix for display, and uses the Trello label color when available.
+
+## FourJaw machines
+
+The Machines card pulls live status from FourJaw. Configure credentials in `.env` using the `FOURJAW_*` vars above.
+
+Machine IDs and display names live in `config/fourjaw.php`. Only those IDs are rendered on the wallboard.
+Status colors and idle thresholds are controlled in `config/wallboard.php` under `machines`.
 
 Example config (trim/rename to match your Trello labels):
 

@@ -97,6 +97,12 @@
             height: 100%;
         }
 
+        .footerRow {
+            display: grid;
+            grid-template-columns: 1fr;
+            margin-top: 16px;
+        }
+
         .chartCard {
             background: rgba(255, 255, 255, .06);
             border: 1px solid rgba(255, 255, 255, .08);
@@ -214,7 +220,20 @@
             @include('wallboard.partials.progress-card')
         </div>
     </div>
-
+    <div class="footerRow">
+        <div style="margin: auto">
+            @php($revision = config('app.revision') ?: 'dev')
+            @php($releasedAt = config('app.released_at'))
+            <div class="badge headerMetaBadge">
+                Rev: {{ \Illuminate\Support\Str::limit($revision, 12, '') }}
+                @if($releasedAt)
+                    <span style="margin-left:6px;">
+                    Published: {{ \Illuminate\Support\Carbon::parse($releasedAt)->format('m-d H:i') }}
+                </span>
+                @endif
+            </div>
+        </div>
+    </div>
 </div>
 
 @stack('scripts')
