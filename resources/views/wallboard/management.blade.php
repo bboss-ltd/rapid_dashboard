@@ -321,7 +321,7 @@
                 <div>
                     <label>Rows per page</label>
                     <select name="per_page">
-                        @foreach([7, 14, 30] as $size)
+                        @foreach(config('wallboard.pagination.options') as $size)
                             <option value="{{ $size }}" @selected($perPage === $size)>{{ $size }}</option>
                         @endforeach
                     </select>
@@ -368,11 +368,12 @@
                 </tbody>
             </table>
         </div>
-
-        <div class="pagination">
-            {{ $reasonRows->links() }}
-        </div>
     </div>
+
+{{--        <div class="pagination">--}}
+{{--            {{ $reasonRows->links() }}--}}
+{{--        </div>--}}
+{{--    </div>--}}
 </div>
 <script>
     (function () {

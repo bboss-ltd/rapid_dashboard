@@ -126,7 +126,7 @@ class WallboardController extends Controller
         }
 
         $perPage = (int) $request->input('per_page', 7);
-        $perPage = in_array($perPage, [7, 14, 30], true) ? $perPage : 7;
+        $perPage = in_array($perPage, config('wallboard.pagination.options'), true) ? $perPage : 7;
         $page = max(1, (int) $request->input('page', 1));
 
         $queryParams = $request->query();
