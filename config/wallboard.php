@@ -69,4 +69,9 @@ return [
         'debug' => env('WALLBOARD_UTILISATION_DEBUG', false),
     ],
 
+    'pagination' => [
+        'options' => [5, 10, 25, 50, 100],
+        'default' => 25
+    ]
+
 ];
