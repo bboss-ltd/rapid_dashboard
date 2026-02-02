@@ -59,12 +59,31 @@ class SyncMissingRemakeLabels extends Command
                 continue;
             }
 
-            $card = $cardLookup[$remake->trello_card_id] ?? null;
-            if (!$card) {
-                continue;
+            $updates = [];
+            $normalizedReason = $remake->reason_label ? $this->stripRmPrefix(trim((string) $remake->reason_label)) : null;
+            $normalizedRemove = $remake->label_name ? $this->stripRmPrefix(trim((string) $remake->label_name)) : null;
+            if ($remake->reason_label !== null && $normalizedReason !== $remake->reason_label) {
+                $updates['reason_label'] = $normalizedReason;
+            }
+            if ($remake->label_name !== null && $normalizedRemove !== $remake->label_name) {
+                $updates['label_name'] = $normalizedRemove;
             }
 
-            $updates = [];
+            $card = $cardLookup[$remake->trello_card_id] ?? null;
+            if (!$card) {
+                $fallback = $remake->reason_label ?: $remake->label_name;
+                $fallback = $fallback ? $this->stripRmPrefix(trim((string) $fallback)) : null;
+                if ($fallback && $remake->trello_reason_label !== $fallback) {
+                    $updates['trello_reason_label'] = $fallback;
+                    $updates['trello_reason_set_at'] = $now;
+                }
+                if ($updates !== []) {
+                    $updates['last_seen_at'] = $now;
+                    $remake->fill($updates)->save();
+                    $updated++;
+                }
+                continue;
+            }
 
             $boardId = $remake->sprint?->trello_board_id;
             $remakeLabel = null;
@@ -88,23 +107,59 @@ class SyncMissingRemakeLabels extends Command
             $isRemove = $normalizedRemake !== '' && array_key_exists($normalizedRemake, $removeMap);
 
             $trelloLabel = $remakeLabel ? trim((string) $remakeLabel) : null;
+            $usedFallback = false;
+            $fallback = $remake->reason_label ?: $remake->label_name;
+            if (($trelloLabel === null || $trelloLabel === '') && $fallback) {
+                $trelloLabel = $this->stripRmPrefix(trim((string) $fallback));
+                $usedFallback = true;
+            }
             if ($remake->trello_reason_label !== $trelloLabel) {
                 $updates['trello_reason_label'] = $trelloLabel;
                 $updates['trello_reason_set_at'] = $trelloLabel ? $now : null;
             }
 
-            $nextReason = $isRemove ? null : ($remakeLabel ? trim((string) $remakeLabel) : null);
-            if ($remake->reason_label !== $nextReason) {
-                $updates['reason_label'] = $nextReason;
-                $updates['reason_label_color'] = null;
-                $updates['reason_set_at'] = $nextReason ? $now : null;
-            }
+            if (!$usedFallback) {
+                $nextReason = $isRemove ? null : ($remakeLabel ? $this->stripRmPrefix(trim((string) $remakeLabel)) : null);
+                if ($remake->reason_label !== $nextReason) {
+                    $updates['reason_label'] = $nextReason;
+                    $updates['reason_label_color'] = null;
+                    $updates['reason_set_at'] = $nextReason ? $now : null;
+                }
 
-            $nextRemove = $isRemove ? trim((string) $remakeLabel) : null;
-            if ($remake->label_name !== $nextRemove) {
-                $updates['label_name'] = $nextRemove;
-                $updates['label_points'] = $nextRemove ? ($removeMap[$normalizedRemake] ?? null) : null;
-                $updates['label_set_at'] = $nextRemove ? $now : null;
+                $nextRemove = $isRemove ? $this->stripRmPrefix(trim((string) $remakeLabel)) : null;
+                if ($remake->label_name !== $nextRemove) {
+                    $updates['label_name'] = $nextRemove;
+                    $updates['label_points'] = $nextRemove ? ($removeMap[$normalizedRemake] ?? null) : null;
+                    $updates['label_set_at'] = $nextRemove ? $now : null;
+                }
+            } else {
+                $fallbackNormalized = $this->normalizeLabel((string) $fallback);
+                $fallbackIsRemove = $fallbackNormalized !== '' && array_key_exists($fallbackNormalized, $removeMap);
+                $fallbackClean = $fallback ? $this->stripRmPrefix(trim((string) $fallback)) : null;
+
+                if ($fallbackIsRemove) {
+                    if ($remake->label_name !== $fallbackClean) {
+                        $updates['label_name'] = $fallbackClean;
+                        $updates['label_points'] = $fallbackClean ? ($removeMap[$fallbackNormalized] ?? null) : null;
+                        $updates['label_set_at'] = $fallbackClean ? $now : null;
+                    }
+                    if ($remake->reason_label !== null) {
+                        $updates['reason_label'] = null;
+                        $updates['reason_label_color'] = null;
+                        $updates['reason_set_at'] = null;
+                    }
+                } else {
+                    if ($remake->reason_label !== $fallbackClean) {
+                        $updates['reason_label'] = $fallbackClean;
+                        $updates['reason_label_color'] = null;
+                        $updates['reason_set_at'] = $fallbackClean ? $now : null;
+                    }
+                    if ($remake->label_name !== null) {
+                        $updates['label_name'] = null;
+                        $updates['label_points'] = null;
+                        $updates['label_set_at'] = null;
+                    }
+                }
             }
 
             if ($boardId) {
@@ -136,6 +191,12 @@ class SyncMissingRemakeLabels extends Command
             return null;
         }
         return $reader->findCustomFieldIdByName($customFields, $fieldName);
+    }
+
+    private function stripRmPrefix(string $label): string
+    {
+        $label = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $label) ?? $label;
+        return trim((string) $label);
     }
 
     /**

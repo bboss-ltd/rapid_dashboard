@@ -31,8 +31,14 @@ final class BuildWallboardViewDataAction
         $series = $this->burndownQuery->run($sprint, $types);
         $latestPoint = $series->last();
         $remakeStatsData = $this->remakeStats->buildRemakeStats($sprint, $types);
-        $reasonStart = now()->startOfDay();
-        $reasonEnd = now()->endOfDay();
+        $reasonStart = $sprint->starts_at ? $sprint->starts_at->copy()->startOfDay() : now()->startOfDay();
+        $lastSnapshotAt = $latestPoint['taken_at'] ?? null;
+        $reasonEnd = $lastSnapshotAt
+            ? Carbon::parse($lastSnapshotAt)->endOfDay()
+            : now()->endOfDay();
+        if ($sprint->ends_at && $reasonEnd->greaterThan($sprint->ends_at)) {
+            $reasonEnd = $sprint->ends_at->copy()->endOfDay();
+        }
         $remakeReasonStats = $this->remakeStats->buildRemakeReasonStats($sprint, $reasonStart, $reasonEnd);
         $machines = [];
         $utilisationSummary = [
