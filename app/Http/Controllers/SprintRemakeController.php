@@ -49,6 +49,7 @@ class SprintRemakeController extends Controller
                 $q->where('trello_card_id', 'like', "%{$search}%")
                     ->orWhere('label_name', 'like', "%{$search}%")
                     ->orWhere('reason_label', 'like', "%{$search}%")
+                    ->orWhere('trello_reason_label', 'like', "%{$search}%")
                     ->orWhereHas('card', function ($card) use ($search) {
                         $card->where('name', 'like', "%{$search}%");
                     });
@@ -144,6 +145,7 @@ class SprintRemakeController extends Controller
                 $q->where('trello_card_id', 'like', "%{$search}%")
                     ->orWhere('label_name', 'like', "%{$search}%")
                     ->orWhere('reason_label', 'like', "%{$search}%")
+                    ->orWhere('trello_reason_label', 'like', "%{$search}%")
                     ->orWhereHas('card', function ($card) use ($search) {
                         $card->where('name', 'like', "%{$search}%");
                     });
@@ -245,6 +247,7 @@ class SprintRemakeController extends Controller
         $remake->load(['sprint', 'card']);
         $trelloCard = null;
         $trelloEstimate = null;
+        $remakeLabelOptions = [];
         $trelloActionsAllowed = $this->trelloActionsAllowed($request);
 
         if ($remake->trello_card_id) {
@@ -274,8 +277,18 @@ class SprintRemakeController extends Controller
                         'points' => $points,
                     ];
                 }
+                $remakeLabelOptions = $this->resolveRemakeLabelOptions($reader, $customFields);
             } catch (\Throwable) {
                 $trelloEstimate = null;
+            }
+        }
+
+        if ($remakeLabelOptions === [] && $remake->sprint?->trello_board_id) {
+            try {
+                $customFields = $reader->fetchCustomFields($remake->sprint->trello_board_id);
+                $remakeLabelOptions = $this->resolveRemakeLabelOptions($reader, $customFields);
+            } catch (\Throwable) {
+                $remakeLabelOptions = [];
             }
         }
 
@@ -284,10 +297,16 @@ class SprintRemakeController extends Controller
             'trelloCard' => $trelloCard,
             'trelloEstimate' => $trelloEstimate,
             'trelloActionsAllowed' => $trelloActionsAllowed,
+            'remakeLabelOptions' => $remakeLabelOptions,
         ]);
     }
 
-    public function update(SprintRemakeUpdateRequest $request, SprintRemake $remake, TrelloClient $trello): RedirectResponse
+    public function update(
+        SprintRemakeUpdateRequest $request,
+        SprintRemake $remake,
+        TrelloClient $trello,
+        TrelloSprintBoardReader $reader,
+    ): RedirectResponse
     {
         if ($remake->removed_at) {
             return redirect()
@@ -301,30 +320,40 @@ class SprintRemakeController extends Controller
         $selected = trim((string) ($data['remake_label'] ?? ''));
         $points = $data['points'] ?? null;
 
-        $reasonLabels = $this->normalizeLabels(config('trello_sync.remake_reason_labels', []));
+        $reasonOptions = [];
+        if ($remake->sprint?->trello_board_id) {
+            try {
+                $reasonOptions = $this->resolveRemakeLabelOptions(
+                    $reader,
+                    $reader->fetchCustomFields($remake->sprint->trello_board_id)
+                );
+            } catch (\Throwable) {
+                $reasonOptions = [];
+            }
+        }
+        if (empty($reasonOptions)) {
+            $reasonOptions = array_values(array_filter(array_map('trim', config('trello_sync.remake_reason_labels', []))));
+        }
         $removeMap = $this->normalizeLabelPoints(config('trello_sync.remake_label_actions.remove', []));
-        $removeLabels = array_keys($removeMap);
 
         $normalized = $this->normalizeLabel($selected);
-        $isReason = $selected !== '' && in_array($normalized, $reasonLabels, true);
         $isRemove = $selected !== '' && array_key_exists($normalized, $removeMap);
+        $allowed = $this->normalizeLabels($reasonOptions);
+        $isAllowed = $selected === '' || empty($allowed) || in_array($normalized, $allowed, true);
+        $isReason = $selected !== '' && !$isRemove;
 
-        if ($selected !== '' && !$isReason && !$isRemove) {
+        if ($selected !== '' && (!$isAllowed || (!$isReason && !$isRemove))) {
             return redirect()
                 ->route('remakes.show', $remake)
                 ->with('status', 'Selected label is not a valid remake label.');
         }
 
-        $reasonColor = $isReason
-            ? $this->resolveReasonColor($trello, $remake->sprint?->trello_board_id, $selected)
-            : null;
-
         $updates = [
-            'estimate_points' => $isReason ? $remake->estimate_points : ($points ?? $remake->estimate_points),
+            'estimate_points' => $remake->estimate_points,
             'label_name' => $isRemove ? $selected : null,
             'label_points' => $isRemove ? ($points ?? $removeMap[$normalized] ?? null) : null,
             'reason_label' => $isReason ? $selected : null,
-            'reason_label_color' => $isReason ? $reasonColor : null,
+            'reason_label_color' => null,
             'last_seen_at' => $now,
         ];
 
@@ -642,5 +671,38 @@ class SprintRemakeController extends Controller
         }
 
         return $count;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $customFields
+     * @return array<int, string>
+     */
+    private function resolveRemakeLabelOptions(TrelloSprintBoardReader $reader, array $customFields): array
+    {
+        $fieldName = (string) config('trello_sync.sprint_board.remake_label_field_name', 'Remake Label');
+        if ($fieldName === '') {
+            return [];
+        }
+
+        $fieldId = $reader->findCustomFieldIdByName($customFields, $fieldName);
+        if (!$fieldId) {
+            return [];
+        }
+
+        foreach ($customFields as $field) {
+            if (($field['id'] ?? null) !== $fieldId) {
+                continue;
+            }
+            $options = [];
+            foreach (($field['options'] ?? []) as $option) {
+                $value = trim((string) ($option['value']['text'] ?? ''));
+                if ($value !== '') {
+                    $options[] = $value;
+                }
+            }
+            return $options;
+        }
+
+        return [];
     }
 }

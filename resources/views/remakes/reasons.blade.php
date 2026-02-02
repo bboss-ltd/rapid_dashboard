@@ -123,7 +123,21 @@
                                             @endif
                                         </td>
                                         <td class="px-4 py-3">
-                                            {{ $remake->reason_label ?? '—' }}
+                                            @php
+                                                $display = $remake->reason_label ? trim((string) (preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $remake->reason_label) ?? $remake->reason_label)) : null;
+                                                $knownReasons = array_values(array_filter(array_map(function ($value) {
+                                                    $value = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', (string) $value) ?? $value;
+                                                    return strtolower(trim((string) $value));
+                                                }, config('trello_sync.remake_reason_labels', []))));
+                                                $removeKeys = array_values(array_filter(array_map(function ($value) {
+                                                    $value = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', (string) $value) ?? $value;
+                                                    return strtolower(trim((string) $value));
+                                                }, array_keys(config('trello_sync.remake_label_actions.remove', [])))));
+                                                $isNewReason = $display
+                                                    ? (!in_array(strtolower($display), $knownReasons, true) && !in_array(strtolower($display), $removeKeys, true))
+                                                    : false;
+                                            @endphp
+                                            {{ $display ? $display.($isNewReason ? ' *' : '') : '—' }}
                                         </td>
                                         <td class="px-4 py-3">{{ $points }}</td>
                                         <td class="px-4 py-3 text-gray-500">
@@ -190,7 +204,7 @@
                                             @endif
                                         </td>
                                         <td class="px-4 py-3">
-                                            {{ $remake->label_name ?? '—' }}
+                                            {{ $remake->label_name ? trim((string) (preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $remake->label_name) ?? $remake->label_name)) : '—' }}
                                         </td>
                                         <td class="px-4 py-3">{{ $points }}</td>
                                         <td class="px-4 py-3 text-gray-500">

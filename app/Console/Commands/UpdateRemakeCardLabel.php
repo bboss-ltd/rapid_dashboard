@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\SprintRemake;
 use App\Services\Trello\TrelloClient;
+use App\Services\Trello\TrelloSprintBoardReader;
 use Illuminate\Console\Command;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 class UpdateRemakeCardLabel extends Command
@@ -27,7 +27,7 @@ class UpdateRemakeCardLabel extends Command
     /**
      * Execute the console command.
      */
-    public function handle(TrelloClient $trello)
+    public function handle(TrelloClient $trello, TrelloSprintBoardReader $reader)
     {
         $remakeId = (int) $this->argument('remakeId');
         $remake = SprintRemake::query()->find($remakeId);
@@ -39,13 +39,11 @@ class UpdateRemakeCardLabel extends Command
         $labelArg = $this->argument('label');
 
         $labelName = null;
-        $labelColor = null;
 
         if (is_string($labelArg) && trim($labelArg) !== '') {
-            $labelName = trim($labelArg);
-            [$labelName, $labelColor] = $this->resolveLabelFromCard($trello, $remake->trello_card_id, $labelName);
+            $labelName = $this->resolveLabelFromOptions($reader, $remake->sprint?->trello_board_id, trim($labelArg)) ?? trim($labelArg);
         } else {
-            [$labelName, $labelColor] = $this->resolveLabelFromTrello($trello, $remake->trello_card_id);
+            $labelName = $this->resolveLabelFromTrello($reader, $trello, $remake->trello_card_id, $remake->sprint?->trello_board_id);
         }
 
         if (!$labelName) {
@@ -53,9 +51,27 @@ class UpdateRemakeCardLabel extends Command
             return Command::SUCCESS;
         }
 
-        $remake->reason_label = $labelName;
-        $remake->reason_label_color = $labelColor;
-        $remake->reason_set_at = Carbon::now();
+        $removeMap = $this->normalizeLabelPoints(config('trello_sync.remake_label_actions.remove', []));
+        $normalized = $this->normalizeLabel((string) $labelName);
+
+        if ($normalized !== '' && array_key_exists($normalized, $removeMap)) {
+            $remake->label_name = $labelName;
+            $remake->label_points = $removeMap[$normalized] ?? null;
+            $remake->label_set_at = Carbon::now();
+            $remake->reason_label = null;
+            $remake->reason_label_color = null;
+            $remake->reason_set_at = null;
+        } else {
+            $remake->reason_label = $labelName;
+            $remake->reason_label_color = null;
+            $remake->reason_set_at = Carbon::now();
+            $remake->label_name = null;
+            $remake->label_points = null;
+            $remake->label_set_at = null;
+        }
+
+        $remake->trello_reason_label = $labelName;
+        $remake->trello_reason_set_at = Carbon::now();
         $remake->last_seen_at = Carbon::now();
         $remake->save();
 
@@ -76,95 +92,74 @@ class UpdateRemakeCardLabel extends Command
     /**
      * @return array{0: string|null, 1: string|null}
      */
-    private function resolveLabelFromTrello(TrelloClient $trello, ?string $cardId): array
+    private function resolveLabelFromTrello(TrelloSprintBoardReader $reader, TrelloClient $trello, ?string $cardId, ?string $boardId): ?string
     {
-        if (!$cardId) {
-            return [null, null];
+        if (!$cardId || !$boardId) {
+            return null;
         }
 
-        $labels = $this->fetchCardLabels($trello, $cardId);
-        if ($labels === []) {
-            return [null, null];
+        $card = $trello->get("/cards/{$cardId}", [
+            'fields' => 'name',
+            'customFieldItems' => 'true',
+        ]);
+
+        $customFields = $reader->fetchCustomFields($boardId);
+        $lookup = $reader->buildDropdownLookup($customFields);
+        $fieldId = $this->resolveRemakeLabelFieldId($reader, $customFields);
+        if (!$fieldId) {
+            return null;
         }
 
-        $reasonLabels = config('trello_sync.remake_reason_labels', []);
-        $labelMap = $this->buildNormalizedLabelMap($reasonLabels);
-
-        foreach ($labels as $label) {
-            $name = trim((string) Arr::get($label, 'name', ''));
-            if ($name === '') {
-                continue;
-            }
-            $normalized = $this->normalizeLabel($name);
-            if (isset($labelMap[$normalized])) {
-                return [$name, (string) Arr::get($label, 'color', '')];
-            }
-        }
-
-        return [null, null];
+        return $reader->resolveDropdownText($card, $fieldId, $lookup);
     }
 
     /**
-     * @return array{0: string|null, 1: string|null}
+     * @param array<string, int|float|string> $labels
+     * @return array<string, int>
      */
-    private function resolveLabelFromCard(TrelloClient $trello, ?string $cardId, string $requestedLabel): array
+    private function normalizeLabelPoints(array $labels): array
+    {
+        $out = [];
+        foreach ($labels as $label => $points) {
+            $name = $this->normalizeLabel((string) $label);
+            if ($name === '') {
+                continue;
+            }
+            $out[$name] = (int) $points;
+        }
+        return $out;
+    }
+
+    private function resolveLabelFromOptions(TrelloSprintBoardReader $reader, ?string $boardId, string $requestedLabel): ?string
     {
         $requestedLabel = trim($requestedLabel);
         if ($requestedLabel === '') {
-            return [null, null];
+            return null;
         }
 
-        if (!$cardId) {
-            return [$requestedLabel, null];
+        if (!$boardId) {
+            return $requestedLabel;
         }
 
-        $labels = $this->fetchCardLabels($trello, $cardId);
-        if ($labels === []) {
-            return [$requestedLabel, null];
+        $customFields = $reader->fetchCustomFields($boardId);
+        $fieldId = $this->resolveRemakeLabelFieldId($reader, $customFields);
+        if (!$fieldId) {
+            return $requestedLabel;
         }
 
-        $normalizedRequested = $this->normalizeLabel($requestedLabel);
-        foreach ($labels as $label) {
-            $name = trim((string) Arr::get($label, 'name', ''));
-            if ($name === '') {
+        foreach (($customFields ?? []) as $field) {
+            if (($field['id'] ?? null) !== $fieldId) {
                 continue;
             }
-            if ($this->normalizeLabel($name) === $normalizedRequested) {
-                return [$name, (string) Arr::get($label, 'color', '')];
+            foreach (($field['options'] ?? []) as $option) {
+                $value = trim((string) ($option['value']['text'] ?? ''));
+                if ($value !== '' && mb_strtolower($value) === mb_strtolower($requestedLabel)) {
+                    return $value;
+                }
             }
         }
 
-        return [$requestedLabel, null];
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function fetchCardLabels(TrelloClient $trello, string $cardId): array
-    {
-        $card = $trello->get("/cards/{$cardId}", [
-            'fields' => 'labels',
-        ]);
-
-        $labels = Arr::get($card, 'labels', []);
-        return is_array($labels) ? $labels : [];
-    }
-
-    /**
-     * @param array<int, string> $labels
-     * @return array<string, string>
-     */
-    private function buildNormalizedLabelMap(array $labels): array
-    {
-        $map = [];
-        foreach ($labels as $label) {
-            $name = trim((string) $label);
-            if ($name === '') {
-                continue;
-            }
-            $map[$this->normalizeLabel($name)] = $name;
-        }
-        return $map;
+        return $requestedLabel;
     }
 
     private function normalizeLabel(string $label): string
@@ -172,5 +167,14 @@ class UpdateRemakeCardLabel extends Command
         $label = strtolower(trim($label));
         $label = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $label);
         return trim((string) $label);
+    }
+
+    private function resolveRemakeLabelFieldId(TrelloSprintBoardReader $reader, array $customFields): ?string
+    {
+        $fieldName = (string) config('trello_sync.sprint_board.remake_label_field_name', 'Remake Label');
+        if ($fieldName === '') {
+            return null;
+        }
+        return $reader->findCustomFieldIdByName($customFields, $fieldName);
     }
 }

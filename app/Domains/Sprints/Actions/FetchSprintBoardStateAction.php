@@ -26,6 +26,7 @@ final class FetchSprintBoardStateAction
      *     last_activity_at: \DateTimeInterface|null,
      *     estimate_points: int|null,
      *     estimation_label: string|null,
+     *     remake_label: string|null,
      *     labels: array<int, string>,
      *     is_done: bool
      *   }>
@@ -44,6 +45,10 @@ final class FetchSprintBoardStateAction
 
         // "Estimation" dropdown custom field id
         $estimationFieldId = $this->reader->findCustomFieldIdByName($customFields, 'Estimation');
+        $remakeLabelFieldName = (string) config('trello_sync.sprint_board.remake_label_field_name', 'Remake Label');
+        $remakeLabelFieldId = $remakeLabelFieldName !== ''
+            ? $this->reader->findCustomFieldIdByName($customFields, $remakeLabelFieldName)
+            : null;
 
         // Cards on board (includes customFieldItems)
         $cards = $this->reader->fetchCards($boardId);
@@ -60,6 +65,11 @@ final class FetchSprintBoardStateAction
             $label = null;
             if ($estimationFieldId) {
                 $label = $this->reader->resolveDropdownText($c, $estimationFieldId, $lookup);
+            }
+
+            $remakeLabel = null;
+            if ($remakeLabelFieldId) {
+                $remakeLabel = $this->reader->resolveDropdownText($c, $remakeLabelFieldId, $lookup);
             }
 
             $points = $this->pointsResolver->pointsForLabel($label);
@@ -82,6 +92,7 @@ final class FetchSprintBoardStateAction
                 'last_activity_at' => isset($c['dateLastActivity']) ? Carbon::parse($c['dateLastActivity']) : null,
                 'estimate_points' => $points,
                 'estimation_label' => $label,
+                'remake_label' => $remakeLabel,
                 'labels' => $labels,
                 'is_done' => $isDone,
             ];

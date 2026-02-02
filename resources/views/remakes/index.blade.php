@@ -93,7 +93,7 @@
                                 @endphp
                                 <a class="inline-flex items-center gap-1 text-gray-700 hover:text-gray-900"
                                    href="{{ route('remakes.index', array_merge(request()->all(), ['sort' => 'reason', 'dir' => $nextDir])) }}">
-                                    Label / Reason
+                                    Local Label
                                     @if($currentDir === 'asc')
                                         <span aria-hidden="true">▲</span>
                                     @elseif($currentDir === 'desc')
@@ -101,6 +101,7 @@
                                     @endif
                                 </a>
                             </th>
+                            <th class="px-4 py-3 text-left">Trello Label</th>
                             <th class="px-4 py-3 text-left">Points</th>
                             <th class="px-4 py-3 text-left">Last Seen</th>
                             <th class="px-4 py-3 text-right">Details</th>
@@ -110,6 +111,27 @@
                         @forelse($remakes as $remake)
                             @php
                                 $label = $remake->reason_label ?: $remake->label_name;
+                                $displayLabel = $label
+                                    ? trim((string) (preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $label) ?? $label))
+                                    : null;
+                                $trelloLabel = $remake->trello_reason_label;
+                                $displayTrello = $trelloLabel
+                                    ? trim((string) (preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $trelloLabel) ?? $trelloLabel))
+                                    : null;
+                                $knownReasons = array_values(array_filter(array_map(function ($value) {
+                                    $value = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', (string) $value) ?? $value;
+                                    return strtolower(trim((string) $value));
+                                }, config('trello_sync.remake_reason_labels', []))));
+                                $removeKeys = array_values(array_filter(array_map(function ($value) {
+                                    $value = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', (string) $value) ?? $value;
+                                    return strtolower(trim((string) $value));
+                                }, array_keys(config('trello_sync.remake_label_actions.remove', [])))));
+                                $isNewReason = $displayLabel
+                                    ? (!in_array(strtolower($displayLabel), $knownReasons, true) && !in_array(strtolower($displayLabel), $removeKeys, true))
+                                    : false;
+                                $isNewTrello = $displayTrello
+                                    ? (!in_array(strtolower($displayTrello), $knownReasons, true) && !in_array(strtolower($displayTrello), $removeKeys, true))
+                                    : false;
                                 $points = $remake->label_points ?? $remake->estimate_points ?? 0;
                             @endphp
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-900">
@@ -134,7 +156,10 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3">
-                                    {{ $label ?: '—' }}
+                                    {{ $displayLabel ? $displayLabel.($isNewReason ? ' *' : '') : '—' }}
+                                </td>
+                                <td class="px-4 py-3">
+                                    {{ $displayTrello ? $displayTrello.($isNewTrello ? ' *' : '') : '—' }}
                                 </td>
                                 <td class="px-4 py-3">
                                     {{ $points }}
@@ -150,7 +175,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-6 text-center text-gray-500">No remakes found.</td>
+                                <td colspan="8" class="px-4 py-6 text-center text-gray-500">No remakes found.</td>
                             </tr>
                         @endforelse
                         </tbody>
