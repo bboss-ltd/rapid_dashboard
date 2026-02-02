@@ -73,7 +73,10 @@ class WallboardController extends Controller
         $types = array_values(array_intersect($types, $allowed));
         if (empty($types)) $types = ['ad_hoc', 'end'];
 
-        return view('wallboard.sprint', $buildViewData->run($sprint, $types));
+        return view('wallboard.sprint', [
+            ...$buildViewData->run($sprint, $types),
+            'types' => $types,
+        ]);
     }
 
     /**
