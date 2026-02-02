@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Sprint Overview</title>
+    @livewireStyles
     <style>
         body {
             font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
@@ -193,31 +194,20 @@
 </head>
 <body>
 <div class="wrap">
-    @include('wallboard.partials.header')
-
-    @php
-
-        $endTotals = $summary['end_totals'] ?? null;
-        $hasEnd = $summary['has_end_snapshot'] ?? false;
-        $latestPointData = $latestPoint ?? [];
-        $rollover = $summary['rollover'] ?? ['cards_count' => 0, 'points' => 0];
-        $liveRemakes = (int) ($latestPointData['remakes_count'] ?? 0);
-        $remakeStats = $remakeStats ?? ['total' => null, 'today' => 0, 'sprint' => 0, 'month' => 0];
-        $remakeTotal = $remakeStats['total'] ?? $liveRemakes;
-    @endphp
+    <livewire:wallboard.header :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
 
     <div class="row">
         <div style="display:flex; flex-direction:column; gap:16px;">
             <div class="topRow">
-                @include('wallboard.partials.remakes-card')
-                @include('wallboard.partials.machines-card')
+                <livewire:wallboard.remakes-card :sprint="$sprint" :types="$types" :refresh-seconds="$refreshSeconds" />
+                <livewire:wallboard.machines-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
             </div>
-            @include('wallboard.partials.burndown-card')
+            <livewire:wallboard.burndown-card :sprint="$sprint" :types="$types" :refresh-seconds="$refreshSeconds" />
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px;">
-            @include('wallboard.partials.remake-reasons-card')
-            @include('wallboard.partials.utilisation-card')
+            <livewire:wallboard.remake-reasons-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
+            <livewire:wallboard.utilisation-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
         </div>
     </div>
     <div class="footerRow">
@@ -237,6 +227,7 @@
 </div>
 
 @stack('scripts')
+@livewireScripts
 
 </body>
 </html>

@@ -81,27 +81,27 @@ return [
     // Map label name => points override (0 disables points for that remake).
     'remake_label_actions' => [
         'remove' => [
-            'RM Cancelled' => 1,
-            'RM Accidental' => 1,
-            'RM Rejected' => 2,
-            'RM Test' => 0,
-            'RM Duplicate' => 0,
+            'Cancelled' => 1,
+            'Accidental' => 1,
+            'Rejected' => 2,
+            'Test' => 0,
+            'Duplicate' => 0,
         ],
         'restore' => [
-            'RM Restored',
+            'Restored',
         ],
     ],
 
     // Labels used to categorize remake reasons (used in wallboard breakdown).
     'remake_reason_labels' => [
-        'RM Programming Related',
-        'RM Punch',
-        'RM Shakeout',
-        'RM Folding',
-        'RM Welding',
-        'RM Spraying',
-        'RM Assembly',
-        'RM Dispatch'
+        'Programming Related',
+        'Punch',
+        'Shakeout',
+        'Folding',
+        'Welding',
+        'Spraying',
+        'Assembly',
+        'Dispatch'
     ],
 
     // Trello card cover options for manual edits in the admin UI.
