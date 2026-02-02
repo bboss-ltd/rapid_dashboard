@@ -71,6 +71,26 @@ class TrelloSprintBoardReader
         return null;
     }
 
+    public function findDropdownOptionIdByText(array $customFields, string $customFieldId, string $text): ?string
+    {
+        $needle = strtolower(trim($text));
+        if ($needle === '') {
+            return null;
+        }
+
+        foreach ($customFields as $field) {
+            if (($field['id'] ?? null) !== $customFieldId) continue;
+            foreach (($field['options'] ?? []) as $option) {
+                $value = strtolower(trim((string) ($option['value']['text'] ?? '')));
+                if ($value === $needle) {
+                    return $option['id'] ?? null;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public function resolveNumberValue(array $card, string $customFieldId): ?string
     {
         foreach (($card['customFieldItems'] ?? []) as $item) {

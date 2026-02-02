@@ -9,7 +9,16 @@ use Illuminate\Support\Carbon;
 final class TrackRemakeCardsAction
 {
     /**
-     * @param array<int, array{trello_card_id:string, card_id:int|null, estimate_points:int|null, reason_label:string|null, reason_label_color:string|null}> $remakes
+     * @param array<int, array{
+     *   trello_card_id:string,
+     *   card_id:int|null,
+     *   estimate_points:int|null,
+     *   reason_label:string|null,
+     *   reason_label_color:string|null,
+     *   label_name:string|null,
+     *   label_points:int|null,
+     *   trello_reason_label:string|null
+     * }> $remakes
      */
     public function run(Sprint $sprint, array $remakes, ?Carbon $seenAt = null): void
     {
@@ -46,14 +55,56 @@ final class TrackRemakeCardsAction
                 'removed_at' => $record->removed_at,
             ]);
 
-            $reasonLabel = trim((string) ($remake['reason_label'] ?? ''));
-            $reasonColor = trim((string) ($remake['reason_label_color'] ?? ''));
-            if ($reasonLabel !== '') {
-                $record->update([
-                    'reason_label' => $reasonLabel,
-                    'reason_label_color' => $reasonColor !== '' ? $reasonColor : $record->reason_label_color,
-                    'reason_set_at' => $timestamp,
-                ]);
+            if (array_key_exists('trello_reason_label', $remake)) {
+                $trelloLabel = trim((string) ($remake['trello_reason_label'] ?? ''));
+                if ($trelloLabel === '') {
+                    $record->update([
+                        'trello_reason_label' => null,
+                        'trello_reason_set_at' => null,
+                    ]);
+                } elseif ($record->trello_reason_label !== $trelloLabel) {
+                    $record->update([
+                        'trello_reason_label' => $trelloLabel,
+                        'trello_reason_set_at' => $timestamp,
+                    ]);
+                }
+            }
+
+            if (array_key_exists('label_name', $remake)) {
+                $labelName = trim((string) ($remake['label_name'] ?? ''));
+                $updates = [];
+                if ($labelName === '') {
+                    $updates['label_name'] = null;
+                    $updates['label_points'] = null;
+                    $updates['label_set_at'] = null;
+                } else {
+                    $updates['label_name'] = $labelName;
+                    $updates['label_points'] = $remake['label_points'] ?? $record->label_points;
+                    if ($record->label_name !== $labelName) {
+                        $updates['label_set_at'] = $timestamp;
+                    }
+                }
+                if ($updates !== []) {
+                    $record->update($updates);
+                }
+            }
+
+            if (array_key_exists('reason_label', $remake)) {
+                $reasonLabel = trim((string) ($remake['reason_label'] ?? ''));
+                $reasonColor = trim((string) ($remake['reason_label_color'] ?? ''));
+                if ($reasonLabel === '') {
+                    $record->update([
+                        'reason_label' => null,
+                        'reason_label_color' => null,
+                        'reason_set_at' => null,
+                    ]);
+                } else {
+                    $record->update([
+                        'reason_label' => $reasonLabel,
+                        'reason_label_color' => $reasonColor !== '' ? $reasonColor : $record->reason_label_color,
+                        'reason_set_at' => $record->reason_label !== $reasonLabel ? $timestamp : $record->reason_set_at,
+                    ]);
+                }
             }
         }
     }

@@ -18,6 +18,8 @@ class SprintRemake extends Model
         'reason_label',
         'reason_label_color',
         'reason_set_at',
+        'trello_reason_label',
+        'trello_reason_set_at',
         'first_seen_at',
         'last_seen_at',
         'removed_at',
@@ -29,6 +31,7 @@ class SprintRemake extends Model
         'removed_at' => 'datetime',
         'label_set_at' => 'datetime',
         'reason_set_at' => 'datetime',
+        'trello_reason_set_at' => 'datetime',
     ];
 
     public function card(): BelongsTo

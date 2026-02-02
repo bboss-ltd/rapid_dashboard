@@ -25,10 +25,48 @@
             @endif
 
             @php
-                $reasonOptions = array_values(array_filter(array_map('trim', config('trello_sync.remake_reason_labels', []))));
-                $labelOptions = array_values(array_filter(array_map('trim', array_keys(config('trello_sync.remake_label_actions.remove', [])))));
+                $reasonOptions = array_values(array_filter(array_map('trim', $remakeLabelOptions ?? [])));
+                if (empty($reasonOptions)) {
+                    $reasonOptions = array_values(array_filter(array_map('trim', config('trello_sync.remake_reason_labels', []))));
+                }
+                $removeMap = array_map('strval', array_keys(config('trello_sync.remake_label_actions.remove', [])));
+                $labelOptions = [];
+                if (!empty($reasonOptions)) {
+                    $labelOptions = array_values(array_filter($reasonOptions, function ($option) use ($removeMap) {
+                        $normalized = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', (string) $option) ?? $option;
+                        $normalized = strtolower(trim((string) $normalized));
+                        foreach ($removeMap as $remove) {
+                            $removeNorm = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', (string) $remove) ?? $remove;
+                            if (strtolower(trim((string) $removeNorm)) === $normalized) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }));
+                } else {
+                    $labelOptions = array_values(array_filter(array_map('trim', array_keys(config('trello_sync.remake_label_actions.remove', [])))));
+                }
+                $reasonOptions = array_values(array_filter($reasonOptions, function ($option) use ($labelOptions) {
+                    return !in_array($option, $labelOptions, true);
+                }));
                 $currentLabel = $remake->reason_label ?: $remake->label_name;
+                $normalizeLabel = function ($value) {
+                    $value = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', (string) $value) ?? $value;
+                    return trim((string) $value);
+                };
+                $knownReasons = array_values(array_filter(array_map(function ($value) use ($normalizeLabel) {
+                    return strtolower($normalizeLabel($value));
+                }, config('trello_sync.remake_reason_labels', []))));
+                $removeKeys = array_values(array_filter(array_map(function ($value) use ($normalizeLabel) {
+                    return strtolower($normalizeLabel($value));
+                }, array_keys(config('trello_sync.remake_label_actions.remove', [])))));
+                $selectedValue = old('remake_label', $currentLabel);
+                $selectedNormalized = $normalizeLabel($selectedValue);
                 $currentPoints = $remake->label_points ?? $remake->estimate_points;
+                $displayReason = $remake->reason_label ? $normalizeLabel($remake->reason_label) : null;
+                $isNewReason = $displayReason
+                    && !in_array(strtolower($displayReason), $knownReasons, true)
+                    && !in_array(strtolower($displayReason), $removeKeys, true);
             @endphp
 
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
@@ -53,12 +91,14 @@
                         <div class="font-medium">{{ $remake->card?->name ?? '—' }}</div>
                     </div>
                     <div class="rounded-lg border border-gray-100 dark:border-gray-700 p-4">
-                        <div class="text-gray-500">Remake reason label</div>
-                        <div class="font-medium">{{ $remake->reason_label ?? '—' }}</div>
+                        <div class="text-gray-500">Remake label</div>
+                        <div class="font-medium">
+                            {{ $displayReason ? $displayReason.($isNewReason ? ' *' : '') : '—' }}
+                        </div>
                     </div>
                     <div class="rounded-lg border border-gray-100 dark:border-gray-700 p-4">
                         <div class="text-gray-500">Remove label</div>
-                        <div class="font-medium">{{ $remake->label_name ?? '—' }}</div>
+                        <div class="font-medium">{{ $remake->label_name ? $normalizeLabel($remake->label_name) : '—' }}</div>
                     </div>
                     <div class="rounded-lg border border-gray-100 dark:border-gray-700 p-4">
                         <div class="text-gray-500">Estimate points</div>
@@ -82,10 +122,12 @@
                     @endif
                 </div>
                 <div class="mt-3 rounded border border-blue-100 bg-blue-50 text-blue-900 text-xs p-3">
-                    You can set either a remake reason <strong>or</strong> a remove-from-consideration label, not both.
-                    When a reason label is set, estimate points are locked.
+                    You can set either a remake label <strong>or</strong> a remove-from-consideration label, not both.
+                    When a remake label is set, estimate points are locked.
                 </div>
-                @php($isRemoved = (bool) $remake->removed_at)
+                @php
+                    $isRemoved = (bool) $remake->removed_at;
+                @endphp
                 <form method="post" action="{{ route('remakes.update', $remake) }}" class="mt-4 grid md:grid-cols-2 gap-4">
                     @csrf
                     @method('PUT')
@@ -95,16 +137,25 @@
                         <select name="remake_label" id="remakeLabelSelect" class="mt-1 w-full rounded border-gray-300 dark:border-gray-700 dark:bg-gray-900" @disabled($isRemoved)>
                             <option value="">None</option>
                             @if(count($reasonOptions))
-                                <optgroup label="Reason labels">
+                                <optgroup label="Remake labels">
                                     @foreach($reasonOptions as $option)
-                                        <option value="{{ $option }}" data-type="reason" @selected(old('remake_label', $currentLabel) === $option)>{{ $option }}</option>
+                                        @php
+                                            $optionLabel = $option;
+                                            $optionNormalized = strtolower($normalizeLabel($option));
+                                            if (!empty($knownReasons)
+                                                && !in_array($optionNormalized, $knownReasons, true)
+                                                && !in_array($optionNormalized, $removeKeys, true)) {
+                                                $optionLabel .= ' *';
+                                            }
+                                        @endphp
+                                        <option value="{{ $option }}" data-type="reason" @selected($normalizeLabel($option) === $selectedNormalized)>{{ $optionLabel }}</option>
                                     @endforeach
                                 </optgroup>
                             @endif
                             @if(count($labelOptions))
                                 <optgroup label="Remove labels">
                                     @foreach($labelOptions as $option)
-                                        <option value="{{ $option }}" data-type="remove" @selected(old('remake_label', $currentLabel) === $option)>{{ $option }}</option>
+                                        <option value="{{ $option }}" data-type="remove" @selected($normalizeLabel($option) === $selectedNormalized)>{{ $option }}</option>
                                     @endforeach
                                 </optgroup>
                             @endif

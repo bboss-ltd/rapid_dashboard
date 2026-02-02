@@ -6,71 +6,73 @@ use App\Models\Card;
 use App\Models\Sprint;
 use App\Models\SprintRemake;
 use App\Models\TrelloAction;
+use App\Services\Trello\TrelloSprintBoardReader;
 use Illuminate\Support\Carbon;
 
 final class ApplyRemakeLabelActionsAction
 {
+    public function __construct(private TrelloSprintBoardReader $reader) {}
+
     public function run(Sprint $sprint): void
     {
         $labelsConfig = config('trello_sync.remake_label_actions', []);
         $pointsMap = $this->normalizeLabelPoints($labelsConfig['remove'] ?? []);
-        $restoreLabels = $this->normalizeLabels($labelsConfig['restore'] ?? []);
-        $reasonLabels = $this->normalizeLabels(config('trello_sync.remake_reason_labels', []));
+
+        $customFields = $this->reader->fetchCustomFields($sprint->trello_board_id);
+        $lookup = $this->reader->buildDropdownLookup($customFields);
+        $remakeLabelFieldName = (string) config('trello_sync.sprint_board.remake_label_field_name', 'Remake Label');
+        $remakeLabelFieldId = $remakeLabelFieldName !== ''
+            ? $this->reader->findCustomFieldIdByName($customFields, $remakeLabelFieldName)
+            : null;
 
         $actions = TrelloAction::query()
             ->where('trello_board_id', $sprint->trello_board_id)
             ->whereNull('processed_at')
-            ->whereIn('type', ['addLabelToCard', 'removeLabelFromCard', 'deleteCard'])
+            ->whereIn('type', ['deleteCard', 'updateCustomFieldItem'])
             ->orderBy('occurred_at')
             ->get();
 
         foreach ($actions as $action) {
             $payload = is_array($action->payload) ? $action->payload : [];
-            $rawLabel = trim((string) ($payload['data']['label']['name'] ?? ''));
-            $rawColor = trim((string) ($payload['data']['label']['color'] ?? ''));
-            $labelName = strtolower($rawLabel);
             $cardId = $payload['data']['card']['id'] ?? null;
             $occurredAt = $action->occurred_at ?? now();
-
-            if ($cardId && $labelName !== '') {
-                if (array_key_exists($labelName, $pointsMap)) {
-                    if ($action->type === 'addLabelToCard') {
-                        $this->applyLabelPoints($sprint, $cardId, $occurredAt, $rawLabel, $pointsMap[$labelName]);
-                    } elseif ($action->type === 'removeLabelFromCard') {
-                        $this->clearLabelPoints($sprint, $cardId, $occurredAt);
-                    }
-                } elseif (in_array($labelName, $restoreLabels, true) && $action->type === 'addLabelToCard') {
-                    $this->clearLabelPoints($sprint, $cardId, $occurredAt);
-                }
-
-                if (in_array($labelName, $reasonLabels, true)) {
-                    if ($action->type === 'addLabelToCard') {
-                        $this->applyReasonLabel($sprint, $cardId, $occurredAt, $rawLabel, $rawColor);
-                    } elseif ($action->type === 'removeLabelFromCard') {
-                        $this->clearReasonLabel($sprint, $cardId, $occurredAt, $rawLabel);
-                    }
-                }
-            }
 
             if ($action->type === 'deleteCard' && $cardId) {
                 $this->markRemoved($sprint, $cardId, $occurredAt);
             }
 
+            if ($action->type === 'updateCustomFieldItem' && $cardId && $remakeLabelFieldId) {
+                $fieldId = $payload['data']['customField']['id'] ?? null;
+                if ($fieldId && $fieldId === $remakeLabelFieldId) {
+                    $idValue = $payload['data']['customFieldItem']['idValue'] ?? null;
+                    $textValue = $payload['data']['customFieldItem']['value']['text'] ?? null;
+                    $label = null;
+                    if (is_string($idValue) && $idValue !== '') {
+                        $label = $lookup[$remakeLabelFieldId][$idValue] ?? null;
+                    } elseif (is_string($textValue) && $textValue !== '') {
+                        $label = $textValue;
+                    }
+
+                    $label = is_string($label) ? trim($label) : null;
+                    if ($label === null || $label === '') {
+                        $this->clearRemakeLabel($sprint, $cardId, $occurredAt);
+                    } elseif (array_key_exists($this->normalizeLabel($label), $pointsMap)) {
+                        $this->applyRemoveFromDropdown(
+                            $sprint,
+                            $cardId,
+                            $occurredAt,
+                            $label,
+                            $pointsMap[$this->normalizeLabel($label)]
+                        );
+                    } else {
+                        $this->applyReasonFromDropdown($sprint, $cardId, $occurredAt, $label);
+                    }
+                }
+            }
+
             $action->processed_at = now();
             $action->save();
         }
-    }
-
-    /**
-     * @param array<int, string> $labels
-     * @return array<int, string>
-     */
-    private function normalizeLabels(array $labels): array
-    {
-        return array_values(array_filter(array_map(function ($label) {
-            $label = strtolower(trim((string) $label));
-            return $label !== '' ? $label : null;
-        }, $labels)));
     }
 
     /**
@@ -81,7 +83,7 @@ final class ApplyRemakeLabelActionsAction
     {
         $out = [];
         foreach ($labels as $label => $points) {
-            $name = strtolower(trim((string) $label));
+            $name = $this->normalizeLabel((string) $label);
             if ($name === '') {
                 continue;
             }
@@ -90,7 +92,7 @@ final class ApplyRemakeLabelActionsAction
         return $out;
     }
 
-    private function applyLabelPoints(Sprint $sprint, string $trelloCardId, Carbon $occurredAt, string $labelName, int $points): void
+    private function applyLabelPoints(Sprint $sprint, string $trelloCardId, Carbon $occurredAt, string $labelName, int $points): SprintRemake
     {
         $card = Card::query()->where('trello_card_id', $trelloCardId)->first();
 
@@ -113,6 +115,8 @@ final class ApplyRemakeLabelActionsAction
             'label_set_at' => $occurredAt,
             'last_seen_at' => $occurredAt,
         ]);
+
+        return $record;
     }
 
     private function clearLabelPoints(Sprint $sprint, string $trelloCardId, Carbon $occurredAt): void
@@ -134,7 +138,7 @@ final class ApplyRemakeLabelActionsAction
         ]);
     }
 
-    private function applyReasonLabel(Sprint $sprint, string $trelloCardId, Carbon $occurredAt, string $labelName, string $labelColor = ''): void
+    private function applyReasonLabel(Sprint $sprint, string $trelloCardId, Carbon $occurredAt, string $labelName): SprintRemake
     {
         $card = Card::query()->where('trello_card_id', $trelloCardId)->first();
 
@@ -153,13 +157,15 @@ final class ApplyRemakeLabelActionsAction
         $record->update([
             'card_id' => $record->card_id ?: $card?->id,
             'reason_label' => $labelName,
-            'reason_label_color' => $labelColor !== '' ? $labelColor : $record->reason_label_color,
+            'reason_label_color' => null,
             'reason_set_at' => $occurredAt,
             'last_seen_at' => $occurredAt,
         ]);
+
+        return $record;
     }
 
-    private function clearReasonLabel(Sprint $sprint, string $trelloCardId, Carbon $occurredAt, string $labelName): void
+    private function clearRemakeLabel(Sprint $sprint, string $trelloCardId, Carbon $occurredAt): void
     {
         $record = SprintRemake::query()
             ->where('sprint_id', $sprint->id)
@@ -170,16 +176,57 @@ final class ApplyRemakeLabelActionsAction
             return;
         }
 
-        if (mb_strtolower((string) $record->reason_label) !== mb_strtolower($labelName)) {
-            return;
-        }
-
         $record->update([
+            'trello_reason_label' => null,
+            'trello_reason_set_at' => null,
             'reason_label' => null,
             'reason_label_color' => null,
             'reason_set_at' => null,
+            'label_name' => null,
+            'label_points' => null,
+            'label_set_at' => null,
             'last_seen_at' => $occurredAt,
         ]);
+    }
+
+    private function applyRemoveFromDropdown(
+        Sprint $sprint,
+        string $trelloCardId,
+        Carbon $occurredAt,
+        string $labelName,
+        int $points
+    ): void {
+        $record = $this->applyLabelPoints($sprint, $trelloCardId, $occurredAt, $labelName, $points);
+        $record->update([
+            'trello_reason_label' => $labelName,
+            'trello_reason_set_at' => $occurredAt,
+            'reason_label' => null,
+            'reason_label_color' => null,
+            'reason_set_at' => null,
+        ]);
+    }
+
+    private function applyReasonFromDropdown(
+        Sprint $sprint,
+        string $trelloCardId,
+        Carbon $occurredAt,
+        string $labelName
+    ): void {
+        $record = $this->applyReasonLabel($sprint, $trelloCardId, $occurredAt, $labelName);
+        $record->update([
+            'trello_reason_label' => $labelName,
+            'trello_reason_set_at' => $occurredAt,
+            'label_name' => null,
+            'label_points' => null,
+            'label_set_at' => null,
+        ]);
+    }
+
+    private function normalizeLabel(string $label): string
+    {
+        $label = strtolower(trim($label));
+        $label = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $label);
+        return trim((string) $label);
     }
 
     private function markRemoved(Sprint $sprint, string $trelloCardId, Carbon $occurredAt): void

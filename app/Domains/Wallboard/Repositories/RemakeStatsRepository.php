@@ -208,7 +208,8 @@ class RemakeStatsRepository
 
     private function acceptedCountForDateRange(Sprint $sprint, Carbon $start, Carbon $end, array $reasonLabels = []): int
     {
-        if (empty($reasonLabels)) {
+        $allowedKeys = array_keys($this->reasonFlowMap());
+        if ($allowedKeys === []) {
             return 0;
         }
 
@@ -220,8 +221,8 @@ class RemakeStatsRepository
 
         $count = 0;
         foreach ($rows as $row) {
-            $label = $this->normalizeLabelName($row->reason_label ?? null);
-            if ($label && in_array($label, $reasonLabels, true)) {
+            $label = $this->normalizeReasonLabelKey($row->reason_label ?? null);
+            if ($label && in_array($label, $allowedKeys, true)) {
                 $count++;
             }
         }
@@ -231,7 +232,12 @@ class RemakeStatsRepository
 
     private function normalizeLabelName(?string $label): ?string
     {
-        $name = mb_strtolower(trim((string) $label));
+        $name = trim((string) $label);
+        if ($name === '') {
+            return null;
+        }
+        $name = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $name) ?? $name;
+        $name = mb_strtolower(trim($name));
         return $name === '' ? null : $name;
     }
 
@@ -242,6 +248,7 @@ class RemakeStatsRepository
             return null;
         }
         $name = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $name) ?? $name;
+        $name = preg_replace('/\\s*\\*\\s*$/', '', $name) ?? $name;
         $name = mb_strtolower(trim($name));
 
         return $name === '' ? null : $name;
@@ -325,20 +332,44 @@ class RemakeStatsRepository
      */
     public function reasonFlow(): array
     {
+        $removeKeys = $this->removeLabelNames();
         $labels = array_values(array_filter(array_map(function ($label) {
             return $this->normalizeReasonLabelDisplay($label);
         }, config('trello_sync.remake_reason_labels', []))));
 
         $unique = [];
         foreach ($labels as $label) {
-            $key = mb_strtolower(trim((string) $label));
-            if ($key === '' || isset($unique[$key])) {
+            $key = $this->normalizeReasonLabelKey($label);
+            if (!$key || in_array($key, $removeKeys, true) || isset($unique[$key])) {
                 continue;
             }
             $unique[$key] = $label;
         }
 
         $flow = array_values($unique);
+
+        $extraLabels = DB::table('sprint_remakes')
+            ->whereNull('removed_at')
+            ->whereNotNull('reason_label')
+            ->select('reason_label')
+            ->distinct()
+            ->get();
+
+        $extras = [];
+        foreach ($extraLabels as $row) {
+            $display = $this->normalizeReasonLabelDisplay($row->reason_label ?? null);
+            $key = $this->normalizeReasonLabelKey($row->reason_label ?? null);
+            if (!$display || !$key || in_array($key, $removeKeys, true) || isset($unique[$key])) {
+                continue;
+            }
+            $extras[$key] = rtrim($display) . ' *';
+        }
+
+        if ($extras !== []) {
+            ksort($extras);
+            $flow = array_merge($flow, array_values($extras));
+        }
+
         $flow[] = 'Unlabelled';
         return $flow;
     }

@@ -17,10 +17,7 @@ final class TakeSprintSnapshotAction
     public function run(Sprint $sprint, string $type, string $source = 'scheduled', array $meta = []): SprintSnapshot
     {
         $state = $this->fetchState->run($sprint);
-        $reasonLabelConfig = config('trello_sync.remake_reason_labels', []);
-        $reasonLabels = array_values(array_filter(array_map(function ($label) {
-            return mb_strtolower(trim((string) $label));
-        }, $reasonLabelConfig)));
+        $removeMap = $this->normalizeLabelPoints(config('trello_sync.remake_label_actions.remove', []));
 
         $snapshot = SprintSnapshot::create([
             'sprint_id' => $sprint->id,
@@ -53,30 +50,23 @@ final class TakeSprintSnapshotAction
             ]);
 
             if ($sprint->remakes_list_id && $c['trello_list_id'] === $sprint->remakes_list_id) {
-                $reasonLabel = null;
-                $reasonColor = null;
-                if (!empty($reasonLabels)) {
-                    $cardLabels = array_map(function ($label) {
-                        return mb_strtolower(trim((string) ($label['name'] ?? '')));
-                    }, $c['labels'] ?? []);
-                    foreach ($reasonLabels as $idx => $label) {
-                        if (in_array($label, $cardLabels, true)) {
-                            $reasonLabel = $reasonLabelConfig[$idx] ?? null;
-                            $matchedIdx = array_search($label, $cardLabels, true);
-                            $reasonColor = $matchedIdx !== false
-                                ? ($c['labels'][$matchedIdx]['color'] ?? null)
-                                : null;
-                            break;
-                        }
-                    }
-                }
+                $remakeLabel = trim((string) ($c['remake_label'] ?? ''));
+                $normalizedRemake = $this->normalizeLabel($remakeLabel);
+                $isRemove = $normalizedRemake !== '' && array_key_exists($normalizedRemake, $removeMap);
+                $reasonLabel = $isRemove || $normalizedRemake === '' ? null : $remakeLabel;
+
+                $labelName = $isRemove ? $remakeLabel : null;
+                $labelPoints = $isRemove ? ($removeMap[$normalizedRemake] ?? null) : null;
 
                 $remakeCards[] = [
                     'trello_card_id' => $c['trello_card_id'],
                     'card_id' => $card->id,
                     'estimate_points' => $c['estimate_points'] ?? null,
                     'reason_label' => $reasonLabel,
-                    'reason_label_color' => $reasonColor ?? null,
+                    'reason_label_color' => null,
+                    'label_name' => $labelName,
+                    'label_points' => $labelPoints,
+                    'trello_reason_label' => $remakeLabel !== '' ? $remakeLabel : null,
                 ];
             }
         }
@@ -84,5 +74,29 @@ final class TakeSprintSnapshotAction
         $this->trackRemakes->run($sprint, $remakeCards);
 
         return $snapshot;
+    }
+
+    private function normalizeLabel(string $label): string
+    {
+        $label = strtolower(trim($label));
+        $label = preg_replace('/^rm\\s*[:\\-]?\\s*/i', '', $label);
+        return trim((string) $label);
+    }
+
+    /**
+     * @param array<int, string> $labels
+     * @return array<int, string>
+     */
+    private function normalizeLabelPoints(array $labels): array
+    {
+        $out = [];
+        foreach ($labels as $label => $points) {
+            $name = $this->normalizeLabel((string) $label);
+            if ($name === '') {
+                continue;
+            }
+            $out[$name] = (int) $points;
+        }
+        return $out;
     }
 }

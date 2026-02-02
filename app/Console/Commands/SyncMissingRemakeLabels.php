@@ -44,11 +44,7 @@ class SyncMissingRemakeLabels extends Command
             return Command::SUCCESS;
         }
 
-        $reasonLabels = config('trello_sync.remake_reason_labels', []);
-        $reasonMap = $this->buildNormalizedLabelMap($reasonLabels);
-
         $removeMap = $this->normalizeLabelPoints(config('trello_sync.remake_label_actions.remove', []));
-        $removeLabels = array_keys($removeMap);
 
         $now = Carbon::now();
         $updated = 0;
@@ -68,73 +64,56 @@ class SyncMissingRemakeLabels extends Command
                 continue;
             }
 
-            $labels = Arr::get($card, 'labels', []);
-            if (!is_array($labels)) {
-                $labels = [];
-            }
-
             $updates = [];
 
-            $reasonLabel = null;
-            $reasonColor = null;
-            foreach ($labels as $label) {
-                $name = trim((string) Arr::get($label, 'name', ''));
-                if ($name === '') {
-                    continue;
-                }
-                $normalized = $this->normalizeLabel($name);
-                if (isset($reasonMap[$normalized])) {
-                    $reasonLabel = $name;
-                    $reasonColor = (string) Arr::get($label, 'color', '');
-                    break;
-                }
-            }
-
-            if ($remake->reason_label !== $reasonLabel) {
-                $updates['reason_label'] = $reasonLabel;
-                $updates['reason_label_color'] = $reasonLabel ? $reasonColor : null;
-                $updates['reason_set_at'] = $reasonLabel ? $now : null;
-            }
-
-            $removeLabel = null;
-            foreach ($labels as $label) {
-                $name = trim((string) Arr::get($label, 'name', ''));
-                if ($name === '') {
-                    continue;
-                }
-                $normalized = $this->normalizeLabel($name);
-                if (in_array($normalized, $removeLabels, true)) {
-                    $removeLabel = $name;
-                    break;
-                }
-            }
-
-            if ($remake->label_name !== $removeLabel) {
-                $updates['label_name'] = $removeLabel;
-                $updates['label_points'] = $removeLabel ? ($removeMap[$this->normalizeLabel($removeLabel)] ?? null) : null;
-                $updates['label_set_at'] = $removeLabel ? $now : null;
-            }
-
             $boardId = $remake->sprint?->trello_board_id;
+            $remakeLabel = null;
             if ($boardId) {
                 if (!array_key_exists($boardId, $customFieldCache)) {
                     $customFields = $reader->fetchCustomFields($boardId);
                     $customFieldCache[$boardId] = [
                         'lookup' => $reader->buildDropdownLookup($customFields),
                         'estimationField' => $reader->findCustomFieldIdByName($customFields, 'Estimation'),
+                        'remakeLabelField' => $this->resolveRemakeLabelFieldId($reader, $customFields),
                     ];
                 }
-                $estimationFieldId = $customFieldCache[$boardId]['estimationField'];
+                $lookup = $customFieldCache[$boardId]['lookup'] ?? [];
+                $remakeFieldId = $customFieldCache[$boardId]['remakeLabelField'] ?? null;
+                if ($remakeFieldId) {
+                    $remakeLabel = $reader->resolveDropdownText($card, $remakeFieldId, $lookup);
+                }
+            }
+
+            $normalizedRemake = $this->normalizeLabel((string) ($remakeLabel ?? ''));
+            $isRemove = $normalizedRemake !== '' && array_key_exists($normalizedRemake, $removeMap);
+
+            $trelloLabel = $remakeLabel ? trim((string) $remakeLabel) : null;
+            if ($remake->trello_reason_label !== $trelloLabel) {
+                $updates['trello_reason_label'] = $trelloLabel;
+                $updates['trello_reason_set_at'] = $trelloLabel ? $now : null;
+            }
+
+            $nextReason = $isRemove ? null : ($remakeLabel ? trim((string) $remakeLabel) : null);
+            if ($remake->reason_label !== $nextReason) {
+                $updates['reason_label'] = $nextReason;
+                $updates['reason_label_color'] = null;
+                $updates['reason_set_at'] = $nextReason ? $now : null;
+            }
+
+            $nextRemove = $isRemove ? trim((string) $remakeLabel) : null;
+            if ($remake->label_name !== $nextRemove) {
+                $updates['label_name'] = $nextRemove;
+                $updates['label_points'] = $nextRemove ? ($removeMap[$normalizedRemake] ?? null) : null;
+                $updates['label_set_at'] = $nextRemove ? $now : null;
+            }
+
+            if ($boardId) {
+                $estimationFieldId = $customFieldCache[$boardId]['estimationField'] ?? null;
                 $lookup = $customFieldCache[$boardId]['lookup'] ?? [];
                 $estLabel = $estimationFieldId
                     ? $reader->resolveDropdownText($card, $estimationFieldId, $lookup)
                     : null;
                 $estPoints = $pointsResolver->pointsForLabel($estLabel);
-
-                if ($removeLabel) {
-                    $removeKey = $this->normalizeLabel($removeLabel);
-                    $estPoints = $updates['label_points'] ?? $remake->label_points ?? ($removeMap[$removeKey] ?? $estPoints);
-                }
 
                 $updates['estimate_points'] = $estPoints;
             }
@@ -148,6 +127,15 @@ class SyncMissingRemakeLabels extends Command
 
         $this->info("Updated {$updated} remakes.");
         return Command::SUCCESS;
+    }
+
+    private function resolveRemakeLabelFieldId(TrelloSprintBoardReader $reader, array $customFields): ?string
+    {
+        $fieldName = (string) config('trello_sync.sprint_board.remake_label_field_name', 'Remake Label');
+        if ($fieldName === '') {
+            return null;
+        }
+        return $reader->findCustomFieldIdByName($customFields, $fieldName);
     }
 
     /**
@@ -191,23 +179,6 @@ class SyncMissingRemakeLabels extends Command
         }
 
         return $results;
-    }
-
-    /**
-     * @param array<int, string> $labels
-     * @return array<string, string>
-     */
-    private function buildNormalizedLabelMap(array $labels): array
-    {
-        $map = [];
-        foreach ($labels as $label) {
-            $name = trim((string) $label);
-            if ($name === '') {
-                continue;
-            }
-            $map[$this->normalizeLabel($name)] = $name;
-        }
-        return $map;
     }
 
     /**
