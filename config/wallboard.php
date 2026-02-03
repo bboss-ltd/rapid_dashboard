@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'refresh_seconds' => (int) env('WALLBOARD_REFRESH_SECONDS', 60),
+    'cache_ttl_seconds' => (int) env('WALLBOARD_CACHE_TTL_SECONDS', 300),
     'ip_allowlist' => array_values(array_filter(array_map('trim', explode(',', env('WALLBOARD_IP_ALLOWLIST', ''))))),
     'basic_auth_enabled' => env('WALLBOARD_BASIC_AUTH_ENABLED', false),
     'basic_auth_user' => env('WALLBOARD_BASIC_AUTH_USER', 'wallboard'),

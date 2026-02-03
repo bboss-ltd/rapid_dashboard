@@ -4,11 +4,15 @@
     data-wallboard-remake-reasons='@json($remakeReasonStats ?? [])'
     data-wallboard-component-id="{{ $this->getId() }}"
 >
+    <div wire:loading wire:target="refreshFromManual" class="badge" style="position:absolute; margin-top:-30px; margin-left:6px; font-size:12px;">Refreshing…</div>
     <div class="cardHeader">
         <div>
             <div class="cardTitle">Remake reasons</div>
             <div class="cardSub">Distribution of remake causality</div>
         </div>
+        @if($debug && $lastRenderedAt)
+            <div class="badge cardAction">Updated {{ \Illuminate\Support\Carbon::parse($lastRenderedAt)->format('H:i:s') }}</div>
+        @endif
     </div>
 
     <div style="position: relative; margin-top: 12px;">
@@ -150,15 +154,29 @@
                 document.querySelectorAll('[data-wallboard-remake-reasons]').forEach(drawRemakeReasons);
             }
 
-            document.addEventListener('livewire:init', () => {
-                drawAll();
+            function bindLivewireHooks() {
                 if (window.Livewire && typeof window.Livewire.hook === 'function') {
-                    window.Livewire.hook('morph.updated', ({component}) => {
-                        if (!component || component.name !== 'wallboard.remake-reasons-card') return;
-                        const root = document.querySelector(`[data-wallboard-component-id="${component.id}"][data-wallboard-remake-reasons]`);
-                        if (root) drawRemakeReasons(root);
+                    window.Livewire.hook('morph.updated', ({ el }) => {
+                        const root = el?.closest?.('[data-wallboard-remake-reasons]');
+                        if (!root) return;
+                        requestAnimationFrame(() => drawRemakeReasons(root));
                     });
                 }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    drawAll();
+                    bindLivewireHooks();
+                });
+            } else {
+                drawAll();
+                bindLivewireHooks();
+            }
+
+            document.addEventListener('livewire:init', () => {
+                drawAll();
+                bindLivewireHooks();
             });
 
             window.addEventListener('resize', drawAll);

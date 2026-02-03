@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SprintRemakeUpdateRequest;
 use App\Domains\Estimation\EstimatePointsResolver;
+use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
 use App\Services\Trello\TrelloSprintBoardReader;
 use App\Domains\Wallboard\Repositories\RemakeStatsRepository;
 use App\Models\Sprint;
@@ -306,6 +307,7 @@ class SprintRemakeController extends Controller
         SprintRemake $remake,
         TrelloClient $trello,
         TrelloSprintBoardReader $reader,
+        TakeSprintSnapshotAction $takeSnapshot,
     ): RedirectResponse
     {
         if ($remake->removed_at) {
@@ -372,6 +374,7 @@ class SprintRemakeController extends Controller
         }
 
         $remake->fill($updates)->save();
+        $this->clearWallboardRemakeCacheAndSnapshot($remake->sprint, $takeSnapshot);
 
         return redirect()
             ->route('remakes.show', $remake)
@@ -415,6 +418,7 @@ class SprintRemakeController extends Controller
         SprintRemake $remake,
         TrelloSprintBoardReader $reader,
         EstimatePointsResolver $pointsResolver,
+        TakeSprintSnapshotAction $takeSnapshot,
     ): RedirectResponse {
         if (!$this->trelloActionsAllowed($request)) {
             return redirect()
@@ -460,6 +464,7 @@ class SprintRemakeController extends Controller
         $remake->estimate_points = $points;
         $remake->last_seen_at = Carbon::now();
         $remake->save();
+        $this->clearWallboardRemakeCacheAndSnapshot($remake->sprint, $takeSnapshot);
 
         if ($remake->card) {
             $name = $card['name'] ?? null;
@@ -484,7 +489,12 @@ class SprintRemakeController extends Controller
             ->with('status', "Estimate synced from Trello (label: {$labelText}, points: {$pointsText}).");
     }
 
-    public function updateTrello(Request $request, SprintRemake $remake, TrelloClient $trello): RedirectResponse
+    public function updateTrello(
+        Request $request,
+        SprintRemake $remake,
+        TrelloClient $trello,
+        TakeSprintSnapshotAction $takeSnapshot,
+    ): RedirectResponse
     {
         if (!$this->trelloActionsAllowed($request)) {
             return redirect()
@@ -528,6 +538,7 @@ class SprintRemakeController extends Controller
 
         $trello->put("/cards/{$remake->trello_card_id}", $payload);
         Cache::forget("trello.card.{$remake->trello_card_id}");
+        $this->clearWallboardRemakeCacheAndSnapshot($remake->sprint, $takeSnapshot);
 
         if (!empty($payload['name']) && $remake->card) {
             $remake->card->name = $payload['name'];
@@ -633,6 +644,23 @@ class SprintRemakeController extends Controller
         $email = strtolower((string) ($request->user()?->email ?? ''));
         $allowed = array_map(fn ($value) => strtolower(trim((string) $value)), $allowed);
         return $email !== '' && in_array($email, $allowed, true);
+    }
+
+    private function clearWallboardRemakeCacheAndSnapshot(
+        ?\App\Models\Sprint $sprint,
+        TakeSprintSnapshotAction $takeSnapshot,
+    ): void
+    {
+        if (!$sprint) {
+            return;
+        }
+
+        $prefix = "wallboard:{$sprint->id}:";
+        foreach (['remakes', 'reasons'] as $key) {
+            Cache::forget($prefix . $key);
+        }
+
+        $takeSnapshot->run($sprint, 'ad_hoc', 'manual_edit');
     }
 
     /**

@@ -16,11 +16,15 @@
     data-wallboard-burndown='@json($burndownPayload, JSON_HEX_APOS | JSON_HEX_AMP)'
     data-wallboard-component-id="{{ $this->getId() }}"
 >
+    <div wire:loading wire:target="refreshFromManual" class="badge" style="position:absolute; margin-top:-30px; margin-left:6px; font-size:12px;">Refreshing…</div>
     <div class="cardHeader">
         <div>
             <div class="cardTitle">Burndown</div>
             <div class="cardSub">Remaining progress over time</div>
         </div>
+        @if($debug && $lastRenderedAt)
+            <div class="badge cardAction">Updated {{ \Illuminate\Support\Carbon::parse($lastRenderedAt)->format('H:i:s') }}</div>
+        @endif
         <div class="cardAction" style="text-align:right;">
             <div style="font-size:12px; opacity:.75;">Sprint progress</div>
             <div id="burndownProgressPct-{{ $this->getId() }}" style="font-size:20px; font-weight:700;">—%</div>

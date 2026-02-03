@@ -377,7 +377,7 @@
 </div>
 <script>
     (function () {
-        const refreshSeconds = 60;
+        const refreshSeconds = Number(@json(config('wallboard.refresh_seconds', 60)));
         const btn = document.getElementById('manualRefreshBtn');
         if (btn) {
             btn.addEventListener('click', () => location.reload());

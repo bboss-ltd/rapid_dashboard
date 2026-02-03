@@ -1,8 +1,12 @@
 <div class="chartCard" style="display:flex; flex-direction:column;" wire:poll.{{ $refreshSeconds }}s>
+    <div wire:loading wire:target="refreshFromManual" class="badge" style="position:absolute; margin-top:-30px; margin-left:6px; font-size:12px;">Refreshing…</div>
     <div class="cardHeader">
         <div>
             <div class="cardTitle">Machines</div>
         </div>
+        @if($debug && $lastRenderedAt)
+            <div class="badge cardAction">Updated {{ \Illuminate\Support\Carbon::parse($lastRenderedAt)->format('H:i:s') }}</div>
+        @endif
     </div>
     @php
         $machineCfg = config('wallboard.machines', []);
