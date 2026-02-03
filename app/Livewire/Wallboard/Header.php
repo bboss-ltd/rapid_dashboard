@@ -49,8 +49,13 @@ class Header extends Component
     private function clearWallboardCache(): void
     {
         $prefix = "wallboard:{$this->sprint->id}:";
-        foreach (['burndown', 'remakes', 'reasons', 'machines', 'utilisation'] as $key) {
+        foreach (['burndown', 'machines', 'utilisation'] as $key) {
             Cache::forget($prefix . $key);
         }
+
+        Cache::forget($prefix . 'remakes');
+        Cache::forget($prefix . 'remakes:now');
+        Cache::forget($prefix . 'reasons');
+        Cache::forget($prefix . 'reasons:' . now()->toDateString());
     }
 }
