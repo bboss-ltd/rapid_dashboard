@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\SprintRemakeUpdateRequest;
 use App\Domains\Estimation\EstimatePointsResolver;
 use App\Domains\Sprints\Actions\TakeSprintSnapshotAction;
+use App\Domains\TrelloSync\Actions\PollBoardActionsAction;
 use App\Services\Trello\TrelloSprintBoardReader;
 use App\Domains\Wallboard\Repositories\RemakeStatsRepository;
 use App\Models\Sprint;
@@ -381,7 +382,7 @@ class SprintRemakeController extends Controller
             ->with('status', 'Remake updated (local only).');
     }
 
-    public function refreshIndex(Request $request, TrelloClient $trello): RedirectResponse
+    public function refreshIndex(Request $request, TrelloClient $trello, PollBoardActionsAction $pollBoard): RedirectResponse
     {
         $query = SprintRemake::query()
             ->orderByDesc('last_seen_at')
@@ -395,6 +396,21 @@ class SprintRemakeController extends Controller
 
         $cardIds = $query->pluck('trello_card_id')->filter()->unique()->values()->all();
         $fetched = $this->refreshTrelloCards($trello, $cardIds);
+
+        $sprints = (clone $query)
+            ->select('sprint_id')
+            ->distinct()
+            ->pluck('sprint_id')
+            ->filter()
+            ->values()
+            ->all();
+
+        foreach ($sprints as $id) {
+            $sprint = Sprint::find($id);
+            if ($sprint && $sprint->trello_board_id) {
+                $pollBoard->run($sprint);
+            }
+        }
 
         return redirect()
             ->route('remakes.index', $request->only(['sprint_id']))
