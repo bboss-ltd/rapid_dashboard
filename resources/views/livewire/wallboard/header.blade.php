@@ -33,7 +33,6 @@
             @if($debug && $lastPoll)
                 <span style="opacity:.7;"> • Poll: {{ $lastPoll->format('H:i:s') }}</span>
             @endif
-            <span class="headerCountdown" data-refresh-countdown></span>
         </div>
     </div>
 </div>

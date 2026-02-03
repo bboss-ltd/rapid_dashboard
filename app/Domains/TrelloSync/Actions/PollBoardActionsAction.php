@@ -48,6 +48,7 @@ final class PollBoardActionsAction
             $sprint->last_polled_at = now();
             $sprint->save();
             $this->applyRemakeLabels->run($sprint);
+            $this->clearWallboardCache($sprint, ['remakes', 'reasons']);
             return;
         }
 
@@ -87,6 +88,7 @@ final class PollBoardActionsAction
         $sprint->save();
 
         $this->applyRemakeLabels->run($sprint);
+        $this->clearWallboardCache($sprint, ['remakes', 'reasons']);
 
         if ($shouldSnapshot) {
             $this->takeSnapshot->run($sprint, 'ad_hoc', 'trello_poll');
@@ -156,5 +158,10 @@ final class PollBoardActionsAction
         foreach ($keys as $key) {
             Cache::forget($prefix . $key);
         }
+
+        Cache::forget($prefix . 'remakes');
+        Cache::forget($prefix . 'remakes:now');
+        Cache::forget($prefix . 'reasons');
+        Cache::forget($prefix . 'reasons:' . now()->toDateString());
     }
 }
