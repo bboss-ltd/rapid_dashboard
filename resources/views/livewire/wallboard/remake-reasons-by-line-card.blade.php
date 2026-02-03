@@ -162,6 +162,7 @@
                 labelAt(Math.round(maxTotal / 2));
                 labelAt(0);
 
+                const barRects = [];
                 entries.forEach((entry, idx) => {
                     const x = axisWidth + idx * (barWidth + gap);
                     let y = chartHeight;
@@ -181,7 +182,18 @@
                     ctx.font = '12px system-ui';
                     ctx.textAlign = 'center';
                     ctx.fillText(entry.line, x + barWidth / 2, rect.height - 8);
+
+                    barRects.push({
+                        x,
+                        y: 0,
+                        w: barWidth,
+                        h: chartHeight,
+                        line: entry.line,
+                        total: entry.total,
+                    });
                 });
+
+                attachTooltip(canvas, root, barRects);
 
                 if (legend) {
                     const totalsByReason = {};
@@ -211,6 +223,59 @@
                             legend.appendChild(item);
                         });
                 }
+            }
+
+            function attachTooltip(canvas, root, barRects) {
+                let tooltip = root.querySelector('[data-reasons-by-line-tooltip]');
+                if (!tooltip) {
+                    tooltip = document.createElement('div');
+                    tooltip.dataset.reasonsByLineTooltip = '1';
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.pointerEvents = 'none';
+                    tooltip.style.background = 'rgba(28, 34, 45, 0.92)';
+                    tooltip.style.color = '#e8eefc';
+                    tooltip.style.fontSize = '12px';
+                    tooltip.style.padding = '6px 8px';
+                    tooltip.style.borderRadius = '8px';
+                    tooltip.style.boxShadow = '0 6px 18px rgba(0,0,0,.35)';
+                    tooltip.style.opacity = '0';
+                    tooltip.style.transition = 'opacity 120ms ease';
+                    root.style.position = 'relative';
+                    root.appendChild(tooltip);
+                }
+
+                function hideTooltip() {
+                    tooltip.style.opacity = '0';
+                }
+
+                function onMove(ev) {
+                    const bounds = canvas.getBoundingClientRect();
+                    const x = (ev.clientX - bounds.left) / (bounds.width) * (bounds.width);
+                    const y = (ev.clientY - bounds.top) / (bounds.height) * (bounds.height);
+
+                    let hit = null;
+                    for (const rect of barRects) {
+                        if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+                            hit = rect;
+                            break;
+                        }
+                    }
+
+                    if (!hit) {
+                        hideTooltip();
+                        return;
+                    }
+
+                    tooltip.textContent = `${hit.line}: ${hit.total}`;
+                    const left = Math.min(bounds.width - 10, Math.max(10, x + 12));
+                    const top = Math.max(10, y - 10);
+                    tooltip.style.left = `${left}px`;
+                    tooltip.style.top = `${top}px`;
+                    tooltip.style.opacity = '1';
+                }
+
+                canvas.onmousemove = onMove;
+                canvas.onmouseleave = hideTooltip;
             }
 
             function drawAll() {
