@@ -204,6 +204,68 @@ class RemakeStatsRepository
     }
 
     /**
+     * @return array{
+     *   lines: array<int, string>,
+     *   reasons: array<int, string>,
+     *   counts: array<string, array<string, int>>,
+     *   colors: array<string, string>
+     * }
+     */
+    public function buildRemakeReasonByLineStats(Sprint $sprint, Carbon $start, Carbon $end): array
+    {
+        $order = $this->reasonFlow();
+        $flowMap = $this->reasonFlowMap();
+        $removeLabels = $this->removeLabelNames();
+
+        $rows = DB::table('sprint_remakes')
+            ->where('sprint_id', $sprint->id)
+            ->whereBetween('first_seen_at', [$start, $end])
+            ->whereNull('removed_at')
+            ->select('reason_label', 'label_name', 'production_line')
+            ->get();
+
+        $counts = [];
+        $lineTotals = [];
+
+        foreach ($rows as $row) {
+            $labelName = $this->normalizeLabelName($row->label_name ?? null);
+            if ($labelName && in_array($labelName, $removeLabels, true)) {
+                continue;
+            }
+
+            $reasonKey = $this->normalizeReasonLabelKey($row->reason_label ?? null);
+            $reasonLabel = $reasonKey && array_key_exists($reasonKey, $flowMap)
+                ? $flowMap[$reasonKey]
+                : 'Unlabelled';
+
+            $line = trim((string) ($row->production_line ?? ''));
+            $line = $line !== '' ? $line : 'Unknown';
+
+            if (!isset($counts[$line])) {
+                $counts[$line] = array_fill_keys($order, 0);
+                $counts[$line]['Unlabelled'] = $counts[$line]['Unlabelled'] ?? 0;
+            }
+
+            $counts[$line][$reasonLabel] = ($counts[$line][$reasonLabel] ?? 0) + 1;
+            $lineTotals[$line] = ($lineTotals[$line] ?? 0) + 1;
+        }
+
+        $lines = array_keys($counts);
+        usort($lines, function (string $a, string $b) use ($lineTotals) {
+            return ($lineTotals[$b] ?? 0) <=> ($lineTotals[$a] ?? 0);
+        });
+
+        $colors = $this->reasonColorsForSprint($sprint, $flowMap);
+
+        return [
+            'lines' => $lines,
+            'reasons' => $order,
+            'counts' => $counts,
+            'colors' => $colors,
+        ];
+    }
+
+    /**
      * @return array<int, Carbon>
      */
     private function remakeDatesForSprint(Sprint $sprint, array $removeLabels = [], bool $ignoreSprint = false): array

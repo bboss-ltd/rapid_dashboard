@@ -41,6 +41,7 @@ return [
         'ends_at_field_name' => env('TRELLO_SPRINT_ENDS_AT_FIELD_NAME', 'Ends at'),
         'status_field_name' => env('TRELLO_SPRINT_STATUS_FIELD_NAME', 'Sprint Status'),
         'remake_label_field_name' => env('TRELLO_REMAKE_LABEL_FIELD_NAME', 'Remake Label'),
+        'production_line_field_name' => env('TRELLO_PRODUCTION_LINE_FIELD_NAME', 'Production Line'),
         'closed_status_label' => env('TRELLO_SPRINT_CLOSED_STATUS_LABEL', 'Closed'),
         'diverged_label_name' => env('TRELLO_SPRINT_DIVERGED_LABEL_NAME', 'Diverged Dates'),
         'diverged_label_color' => env('TRELLO_SPRINT_DIVERGED_LABEL_COLOR', 'red'),

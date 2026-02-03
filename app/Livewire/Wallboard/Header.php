@@ -57,5 +57,7 @@ class Header extends Component
         Cache::forget($prefix . 'remakes:now');
         Cache::forget($prefix . 'reasons');
         Cache::forget($prefix . 'reasons:' . now()->toDateString());
+        Cache::forget($prefix . 'reasons-by-line');
+        Cache::forget($prefix . 'reasons-by-line:' . now()->toDateString());
     }
 }

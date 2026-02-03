@@ -46,6 +46,7 @@ final class TakeSprintSnapshotAction
                 'is_done' => $c['is_done'],
                 'meta' => [
                     'estimation_label' => $c['estimation_label'] ?? null,
+                    'production_line' => $c['production_line'] ?? null,
                 ],
             ]);
 
@@ -67,6 +68,7 @@ final class TakeSprintSnapshotAction
                     'label_name' => $labelName,
                     'label_points' => $labelPoints,
                     'trello_reason_label' => $remakeLabel !== '' ? $remakeLabel : null,
+                    'production_line' => $c['production_line'] ?? null,
                 ];
             }
         }

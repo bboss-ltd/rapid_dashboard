@@ -148,4 +148,39 @@ class RemakeStatsRepositoryTest extends TestCase
 
         $this->assertSame(1, $stats['total']);
     }
+
+    public function test_build_remake_reason_by_line_stats_groups_by_line(): void
+    {
+        $repo = new RemakeStatsRepository();
+
+        $sprint = Sprint::factory()->create();
+        $day = Carbon::create(2026, 2, 3, 10, 0, 0);
+
+        SprintRemake::create([
+            'sprint_id' => $sprint->id,
+            'trello_card_id' => 'card-line-a',
+            'reason_label' => 'Reason A',
+            'production_line' => 'Line A',
+            'first_seen_at' => $day->copy(),
+            'last_seen_at' => $day->copy()->addMinute(),
+        ]);
+
+        SprintRemake::create([
+            'sprint_id' => $sprint->id,
+            'trello_card_id' => 'card-line-b',
+            'reason_label' => 'Reason A',
+            'production_line' => 'Line B',
+            'first_seen_at' => $day->copy(),
+            'last_seen_at' => $day->copy()->addMinute(),
+        ]);
+
+        $stats = $repo->buildRemakeReasonByLineStats(
+            $sprint,
+            $day->copy()->startOfDay(),
+            $day->copy()->endOfDay()
+        );
+
+        $this->assertSame(1, $stats['counts']['Line A']['Reason A']);
+        $this->assertSame(1, $stats['counts']['Line B']['Reason A']);
+    }
 }
