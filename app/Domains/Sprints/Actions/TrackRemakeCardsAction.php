@@ -17,7 +17,8 @@ final class TrackRemakeCardsAction
      *   reason_label_color:string|null,
      *   label_name:string|null,
      *   label_points:int|null,
-     *   trello_reason_label:string|null
+     *   trello_reason_label:string|null,
+     *   production_line:string|null
      * }> $remakes
      */
     public function run(Sprint $sprint, array $remakes, ?Carbon $seenAt = null): void
@@ -54,6 +55,13 @@ final class TrackRemakeCardsAction
                 'last_seen_at' => $timestamp,
                 'removed_at' => $record->removed_at,
             ]);
+
+            if (array_key_exists('production_line', $remake)) {
+                $productionLine = trim((string) ($remake['production_line'] ?? ''));
+                $record->update([
+                    'production_line' => $productionLine !== '' ? $productionLine : null,
+                ]);
+            }
 
             if (array_key_exists('trello_reason_label', $remake)) {
                 $trelloLabel = trim((string) ($remake['trello_reason_label'] ?? ''));

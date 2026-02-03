@@ -27,6 +27,7 @@ final class FetchSprintBoardStateAction
      *     estimate_points: int|null,
      *     estimation_label: string|null,
      *     remake_label: string|null,
+     *     production_line: string|null,
      *     labels: array<int, string>,
      *     is_done: bool
      *   }>
@@ -48,6 +49,10 @@ final class FetchSprintBoardStateAction
         $remakeLabelFieldName = (string) config('trello_sync.sprint_board.remake_label_field_name', 'Remake Label');
         $remakeLabelFieldId = $remakeLabelFieldName !== ''
             ? $this->reader->findCustomFieldIdByName($customFields, $remakeLabelFieldName)
+            : null;
+        $productionLineFieldName = (string) config('trello_sync.sprint_board.production_line_field_name', 'Production Line');
+        $productionLineFieldId = $productionLineFieldName !== ''
+            ? $this->reader->findCustomFieldIdByName($customFields, $productionLineFieldName)
             : null;
 
         // Cards on board (includes customFieldItems)
@@ -72,6 +77,11 @@ final class FetchSprintBoardStateAction
                 $remakeLabel = $this->reader->resolveDropdownText($c, $remakeLabelFieldId, $lookup);
             }
 
+            $productionLine = null;
+            if ($productionLineFieldId) {
+                $productionLine = $this->reader->resolveDropdownText($c, $productionLineFieldId, $lookup);
+            }
+
             $points = $this->pointsResolver->pointsForLabel($label);
 
             $labels = array_values(array_filter(array_map(function ($label) {
@@ -93,6 +103,7 @@ final class FetchSprintBoardStateAction
                 'estimate_points' => $points,
                 'estimation_label' => $label,
                 'remake_label' => $remakeLabel,
+                'production_line' => $productionLine,
                 'labels' => $labels,
                 'is_done' => $isDone,
             ];

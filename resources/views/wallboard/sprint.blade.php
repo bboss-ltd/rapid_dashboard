@@ -218,6 +218,7 @@
     <livewire:wallboard.machines-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" :debug="$debug" />
             </div>
             <livewire:wallboard.burndown-card :sprint="$sprint" :types="$types" :refresh-seconds="$refreshSeconds" :debug="$debug" />
+            <livewire:wallboard.remake-reasons-by-line-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" :debug="$debug" :remakes-for="$remakesFor" />
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px;">

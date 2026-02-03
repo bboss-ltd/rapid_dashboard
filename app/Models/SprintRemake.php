@@ -20,6 +20,7 @@ class SprintRemake extends Model
         'reason_set_at',
         'trello_reason_label',
         'trello_reason_set_at',
+        'production_line',
         'first_seen_at',
         'last_seen_at',
         'removed_at',
