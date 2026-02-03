@@ -96,6 +96,10 @@ Wallboard shows:
 
 Authentication is currently disabled for the wallboard routes.
 
+Query params:
+- `debug=1` (requires an authenticated user) shows extra timing/debug badges.
+- `remakesFor=YYYY-MM-DD` switches the Remakes + Remake Reasons cards into date-first mode and aggregates across all sprints for that day.
+
 ### Management wallboard
 
 Route: `/wallboard/management` (public by default).
