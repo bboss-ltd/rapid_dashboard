@@ -124,13 +124,46 @@
 
                 const maxTotal = entries.reduce((m, e) => Math.max(m, e.total), 1);
                 const labelSpace = 26;
+                const axisWidth = 36;
                 const chartHeight = rect.height - labelSpace;
                 const gap = 14;
                 const slotCount = Math.max(1, entries.length);
-                const barWidth = Math.max(24, (rect.width - gap * (slotCount - 1)) / slotCount);
+                const chartWidth = Math.max(10, rect.width - axisWidth);
+                const barWidth = Math.max(24, (chartWidth - gap * (slotCount - 1)) / slotCount);
+
+                // Gridlines at 50% and 100% of the max total
+                ctx.strokeStyle = 'rgba(232, 238, 252, 0.18)';
+                ctx.lineWidth = 1;
+                [0.5, 1].forEach((ratio) => {
+                    const y = chartHeight - (chartHeight - 6) * ratio;
+                    ctx.beginPath();
+                    ctx.moveTo(axisWidth, y);
+                    ctx.lineTo(rect.width, y);
+                    ctx.stroke();
+                });
+
+                // Y-axis
+                ctx.strokeStyle = 'rgba(232, 238, 252, 0.25)';
+                ctx.beginPath();
+                ctx.moveTo(axisWidth, 0);
+                ctx.lineTo(axisWidth, chartHeight);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(232, 238, 252, 0.8)';
+                ctx.font = '11px system-ui';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                const labelAt = (value) => {
+                    const ratio = maxTotal === 0 ? 0 : value / maxTotal;
+                    const y = chartHeight - (chartHeight - 6) * ratio;
+                    ctx.fillText(String(value), axisWidth - 6, y);
+                };
+                labelAt(Math.round(maxTotal));
+                labelAt(Math.round(maxTotal / 2));
+                labelAt(0);
 
                 entries.forEach((entry, idx) => {
-                    const x = idx * (barWidth + gap);
+                    const x = axisWidth + idx * (barWidth + gap);
                     let y = chartHeight;
 
                     reasons.forEach((reason, rIdx) => {
