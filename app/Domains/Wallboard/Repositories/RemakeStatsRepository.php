@@ -69,22 +69,49 @@ class RemakeStatsRepository
         $prevSprintStart = $prevSprint?->starts_at;
         $prevSprintEnd = $prevSprint?->ends_at ?? $prevSprintStart;
 
-        $currentRemakes = 0;
-        if ($asOfDate === null && $latest) {
-            foreach ($latest->cards as $row) {
-                if ($row->trello_list_id !== $remakesListId) {
-                    continue;
-                }
-                $currentRemakes++;
-            }
-        }
-
         $removeLabels = $this->normalizeLabelNames(
             array_keys(config('trello_sync.remake_label_actions.remove', []))
         );
         $reasonLabels = $this->normalizeLabelNames(
             config('trello_sync.remake_reason_labels', [])
         );
+
+        $currentRemakes = 0;
+        $remakesListCardIds = [];
+        if ($asOfDate === null && $latest) {
+            foreach ($latest->cards as $row) {
+                if ($row->trello_list_id !== $remakesListId) {
+                    continue;
+                }
+                $currentRemakes++;
+                $trelloCardId = $row->card?->trello_card_id;
+                if (is_string($trelloCardId) && $trelloCardId !== '') {
+                    $remakesListCardIds[] = $trelloCardId;
+                }
+            }
+        }
+
+        if ($currentRemakes > 0 && $remakesListCardIds !== [] && $removeLabels !== []) {
+            $removeCount = 0;
+            $rows = DB::table('sprint_remakes')
+                ->where('sprint_id', $sprint->id)
+                ->whereNull('removed_at')
+                ->whereIn('trello_card_id', $remakesListCardIds)
+                ->whereNotNull('label_name')
+                ->select('label_name')
+                ->get();
+
+            foreach ($rows as $row) {
+                $label = $this->normalizeLabelName($row->label_name ?? null);
+                if ($label && in_array($label, $removeLabels, true)) {
+                    $removeCount++;
+                }
+            }
+
+            if ($removeCount > 0) {
+                $currentRemakes = max(0, $currentRemakes - $removeCount);
+            }
+        }
 
         $remakeDates = $this->remakeDatesForSprint($sprint, $removeLabels, $ignoreSprint);
 

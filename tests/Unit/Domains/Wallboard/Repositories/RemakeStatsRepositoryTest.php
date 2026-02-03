@@ -3,8 +3,11 @@
 namespace Tests\Unit\Domains\Wallboard\Repositories;
 
 use App\Domains\Wallboard\Repositories\RemakeStatsRepository;
+use App\Models\Card;
 use App\Models\Sprint;
 use App\Models\SprintRemake;
+use App\Models\SprintSnapshot;
+use App\Models\SprintSnapshotCard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -91,5 +94,58 @@ class RemakeStatsRepositoryTest extends TestCase
         $this->assertSame(2, $stats['requested_today']);
         $this->assertSame(2, $stats['accepted_today']);
         $this->assertSame(0, $stats['prev_today']);
+    }
+
+    public function test_build_remake_stats_excludes_remove_labels_from_current_list(): void
+    {
+        config()->set('trello_sync.remake_label_actions.remove', ['test' => 0]);
+
+        $repo = new RemakeStatsRepository();
+
+        $sprint = Sprint::factory()->create([
+            'remakes_list_id' => 'list-remakes',
+        ]);
+
+        $snapshot = SprintSnapshot::factory()->create([
+            'sprint_id' => $sprint->id,
+            'type' => 'ad_hoc',
+            'taken_at' => now(),
+        ]);
+
+        $cardKeep = Card::factory()->create(['trello_card_id' => 'card-keep']);
+        $cardRemove = Card::factory()->create(['trello_card_id' => 'card-remove']);
+
+        SprintSnapshotCard::factory()->create([
+            'sprint_snapshot_id' => $snapshot->id,
+            'card_id' => $cardKeep->id,
+            'trello_list_id' => 'list-remakes',
+        ]);
+
+        SprintSnapshotCard::factory()->create([
+            'sprint_snapshot_id' => $snapshot->id,
+            'card_id' => $cardRemove->id,
+            'trello_list_id' => 'list-remakes',
+        ]);
+
+        SprintRemake::create([
+            'sprint_id' => $sprint->id,
+            'trello_card_id' => 'card-keep',
+            'label_name' => 'punch',
+            'reason_label' => 'Reason A',
+            'first_seen_at' => now()->subMinute(),
+            'last_seen_at' => now(),
+        ]);
+
+        SprintRemake::create([
+            'sprint_id' => $sprint->id,
+            'trello_card_id' => 'card-remove',
+            'label_name' => 'Test',
+            'first_seen_at' => now()->subMinute(),
+            'last_seen_at' => now(),
+        ]);
+
+        $stats = $repo->buildRemakeStats($sprint, ['ad_hoc']);
+
+        $this->assertSame(1, $stats['total']);
     }
 }
