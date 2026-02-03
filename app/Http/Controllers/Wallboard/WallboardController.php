@@ -76,6 +76,8 @@ class WallboardController extends Controller
         return view('wallboard.sprint', [
             ...$buildViewData->run($sprint, $types),
             'types' => $types,
+            'debug' => $request->boolean('debug') && $request->user() !== null,
+            'remakesFor' => $request->query('remakesFor'),
         ]);
     }
 

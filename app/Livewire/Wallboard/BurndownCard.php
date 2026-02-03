@@ -4,6 +4,7 @@ namespace App\Livewire\Wallboard;
 
 use App\Domains\Reporting\Queries\BurndownSeriesQuery;
 use App\Models\Sprint;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -13,6 +14,8 @@ class BurndownCard extends Component
     public array $types = ['ad_hoc', 'end'];
     public int $refreshSeconds = 60;
     public int $refreshTick = 0;
+    public bool $debug = false;
+    public ?string $lastRenderedAt = null;
 
     public function mount(Sprint $sprint, array $types = ['ad_hoc', 'end'], int $refreshSeconds = 60): void
     {
@@ -27,15 +30,32 @@ class BurndownCard extends Component
         $this->refreshTick++;
     }
 
+    #[On('wallboard-manual-refresh')]
+    public function refreshFromManual(): void
+    {
+        $this->refreshTick++;
+    }
+
     public function render(BurndownSeriesQuery $burndownQuery)
     {
-        $series = $burndownQuery->run($this->sprint, $this->types)->values();
-        $cfg = config('wallboard.burndown', []);
+        $this->lastRenderedAt = now()->toIso8601String();
+        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
+        $payload = Cache::remember($this->cacheKey('burndown'), $ttl, function () use ($burndownQuery) {
+            return [
+                'series' => $burndownQuery->run($this->sprint, $this->types)->values(),
+                'cfg' => config('wallboard.burndown', []),
+            ];
+        });
 
         return view('livewire.wallboard.burndown-card', [
-            'series' => $series,
-            'cfg' => $cfg,
+            'series' => $payload['series'],
+            'cfg' => $payload['cfg'],
             'sprint' => $this->sprint,
         ]);
+    }
+
+    private function cacheKey(string $suffix): string
+    {
+        return "wallboard:{$this->sprint->id}:{$suffix}";
     }
 }

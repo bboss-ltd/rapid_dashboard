@@ -66,6 +66,21 @@
             padding: 6px 10px;
             border-radius: 999px;
             font-size: 13px;
+            min-width: 110px;
+            transition: background 120ms ease, border-color 120ms ease;
+        }
+
+        .headerAction--synced {
+            background: rgba(101, 211, 138, .18);
+            border-color: rgba(101, 211, 138, .4);
+        }
+
+        .sync-only {
+            display: none;
+        }
+
+        body[data-syncing="1"] .sync-only {
+            display: inline-block;
         }
 
         .headerMeta {
@@ -194,20 +209,20 @@
 </head>
 <body>
 <div class="wrap">
-    <livewire:wallboard.header :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
+    <livewire:wallboard.header :sprint="$sprint" :refresh-seconds="$refreshSeconds" :debug="$debug" />
 
     <div class="row">
         <div style="display:flex; flex-direction:column; gap:16px;">
             <div class="topRow">
-                <livewire:wallboard.remakes-card :sprint="$sprint" :types="$types" :refresh-seconds="$refreshSeconds" />
-                <livewire:wallboard.machines-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
+    <livewire:wallboard.remakes-card :sprint="$sprint" :types="$types" :refresh-seconds="$refreshSeconds" :debug="$debug" :remakes-for="$remakesFor" />
+    <livewire:wallboard.machines-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" :debug="$debug" />
             </div>
-            <livewire:wallboard.burndown-card :sprint="$sprint" :types="$types" :refresh-seconds="$refreshSeconds" />
+            <livewire:wallboard.burndown-card :sprint="$sprint" :types="$types" :refresh-seconds="$refreshSeconds" :debug="$debug" />
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px;">
-            <livewire:wallboard.remake-reasons-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
-            <livewire:wallboard.utilisation-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" />
+            <livewire:wallboard.remake-reasons-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" :debug="$debug" :remakes-for="$remakesFor" />
+            <livewire:wallboard.utilisation-card :sprint="$sprint" :refresh-seconds="$refreshSeconds" :debug="$debug" />
         </div>
     </div>
     <div class="footerRow">

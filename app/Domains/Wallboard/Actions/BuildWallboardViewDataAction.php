@@ -145,7 +145,7 @@ final class BuildWallboardViewDataAction
             'remakeReasonStats' => $remakeReasonStats,
             'machines' => $machines,
             'utilisation' => $utilisationSummary,
-            'refreshSeconds' => 60,
+            'refreshSeconds' => (int) config('wallboard.refresh_seconds', 60),
         ];
     }
 

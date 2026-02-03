@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 class RemakeStatsRepository
 {
-    public function buildRemakeStats(Sprint $sprint, array $types): array
+    public function buildRemakeStats(Sprint $sprint, array $types, ?Carbon $asOfDate = null, bool $ignoreSprint = false): array
     {
         $stats = [
             'total' => 0,
@@ -28,47 +28,55 @@ class RemakeStatsRepository
         ];
 
         $remakesListId = $sprint->remakes_list_id;
-        if (!$remakesListId) {
+        if (!$remakesListId && $asOfDate === null) {
             return $stats;
         }
 
-        $latest = $sprint->snapshots()
-            ->whereIn('type', $types)
-            ->latest('taken_at')
-            ->with(['cards.card:id,trello_card_id'])
-            ->first();
+        $latest = null;
+        if ($asOfDate === null) {
+            $latest = $sprint->snapshots()
+                ->whereIn('type', $types)
+                ->latest('taken_at')
+                ->with(['cards.card:id,trello_card_id'])
+                ->first();
 
-        if (!$latest) {
-            return $stats;
+            if (!$latest) {
+                return $stats;
+            }
         }
 
-        $now = now();
-        $todayStart = $now->copy()->startOfDay();
-        $todayEnd = $now->copy()->endOfDay();
-        $yesterdayStart = $now->copy()->subDay()->startOfDay();
-        $yesterdayEnd = $now->copy()->subDay()->endOfDay();
+        $asOf = $asOfDate ? $asOfDate->copy() : now();
+        $todayStart = $asOf->copy()->startOfDay();
+        $todayEnd = $asOf->copy()->endOfDay();
+        $yesterdayStart = $asOf->copy()->subDay()->startOfDay();
+        $yesterdayEnd = $asOf->copy()->subDay()->endOfDay();
 
-        $monthStart = $now->copy()->startOfMonth();
-        $monthEnd = $now->copy()->endOfMonth();
-        $lastMonthStart = $now->copy()->subMonthNoOverflow()->startOfMonth();
-        $lastMonthEnd = $now->copy()->subMonthNoOverflow()->endOfMonth();
+        $monthStart = $asOf->copy()->startOfMonth();
+        $monthEnd = $asOf->copy()->endOfMonth();
+        $lastMonthStart = $asOf->copy()->subMonthNoOverflow()->startOfMonth();
+        $lastMonthEnd = $asOf->copy()->subMonthNoOverflow()->endOfMonth();
 
         $sprintStart = $sprint->starts_at ?? $todayStart;
-        $sprintEnd = $sprint->ends_at && $sprint->ends_at < $now ? $sprint->ends_at : $now;
+        $sprintEnd = $sprint->ends_at && $sprint->ends_at < $asOf ? $sprint->ends_at : $asOf;
 
-        $prevSprint = Sprint::query()
-            ->where('starts_at', '<', $sprintStart)
-            ->orderByDesc('starts_at')
-            ->first();
+        $prevSprint = null;
+        if ($asOfDate === null) {
+            $prevSprint = Sprint::query()
+                ->where('starts_at', '<', $sprintStart)
+                ->orderByDesc('starts_at')
+                ->first();
+        }
         $prevSprintStart = $prevSprint?->starts_at;
         $prevSprintEnd = $prevSprint?->ends_at ?? $prevSprintStart;
 
         $currentRemakes = 0;
-        foreach ($latest->cards as $row) {
-            if ($row->trello_list_id !== $remakesListId) {
-                continue;
+        if ($asOfDate === null && $latest) {
+            foreach ($latest->cards as $row) {
+                if ($row->trello_list_id !== $remakesListId) {
+                    continue;
+                }
+                $currentRemakes++;
             }
-            $currentRemakes++;
         }
 
         $removeLabels = $this->normalizeLabelNames(
@@ -78,24 +86,24 @@ class RemakeStatsRepository
             config('trello_sync.remake_reason_labels', [])
         );
 
-        $remakeDates = $this->remakeDatesForSprint($sprint, $removeLabels);
+        $remakeDates = $this->remakeDatesForSprint($sprint, $removeLabels, $ignoreSprint);
 
-        $stats['total'] = $currentRemakes;
         $stats['today'] = $this->countBetween($remakeDates, $todayStart, $todayEnd);
         $stats['prev_today'] = $this->countBetween($remakeDates, $yesterdayStart, $yesterdayEnd);
         $stats['month'] = $this->countBetween($remakeDates, $monthStart, $monthEnd);
         $stats['prev_month'] = $this->countBetween($remakeDates, $lastMonthStart, $lastMonthEnd);
         $stats['sprint'] = $this->countBetween($remakeDates, $sprintStart, $sprintEnd);
+        $stats['total'] = $asOfDate ? $stats['today'] : $currentRemakes;
 
         $prevRemakeDates = $prevSprint ? $this->remakeDatesForSprint($prevSprint, $removeLabels) : [];
         $stats['prev_sprint'] = $prevSprintStart && $prevSprintEnd
             ? $this->countBetween($prevRemakeDates, $prevSprintStart, $prevSprintEnd)
             : null;
 
-        $stats['requested_today'] = $this->requestedCountForDateRange($sprint, $todayStart, $todayEnd, $removeLabels);
-        $stats['requested_prev_today'] = $this->requestedCountForDateRange($sprint, $yesterdayStart, $yesterdayEnd, $removeLabels);
-        $stats['accepted_today'] = $this->acceptedCountForDateRange($sprint, $todayStart, $todayEnd, $reasonLabels);
-        $stats['accepted_prev_today'] = $this->acceptedCountForDateRange($sprint, $yesterdayStart, $yesterdayEnd, $reasonLabels);
+        $stats['requested_today'] = $this->requestedCountForDateRange($sprint, $todayStart, $todayEnd, $removeLabels, $ignoreSprint);
+        $stats['requested_prev_today'] = $this->requestedCountForDateRange($sprint, $yesterdayStart, $yesterdayEnd, $removeLabels, $ignoreSprint);
+        $stats['accepted_today'] = $this->acceptedCountForDateRange($sprint, $todayStart, $todayEnd, $reasonLabels, $ignoreSprint);
+        $stats['accepted_prev_today'] = $this->acceptedCountForDateRange($sprint, $yesterdayStart, $yesterdayEnd, $reasonLabels, $ignoreSprint);
 
         $stats['trend_today'] = $this->trendLabel($stats['requested_today'], $stats['requested_prev_today']);
 
@@ -110,8 +118,11 @@ class RemakeStatsRepository
         $stats['trend_sprint'] = $prevSprintAvg === null
             ? 'neutral'
             : $this->trendLabel($currentSprintAvg, $prevSprintAvg);
+        if ($asOfDate) {
+            $stats['trend_sprint'] = $this->trendLabel($stats['today'], $stats['prev_today']);
+        }
 
-        $currentMonthDays = max(1, $monthStart->diffInDays($now) + 1);
+        $currentMonthDays = max(1, $monthStart->diffInDays($asOf) + 1);
         $currentMonthAvg = $stats['month'] / $currentMonthDays;
         $prevMonthDays = max(1, $lastMonthStart->daysInMonth);
         $prevMonthAvg = $stats['prev_month'] / $prevMonthDays;
@@ -120,19 +131,21 @@ class RemakeStatsRepository
         return $stats;
     }
 
-    public function buildRemakeReasonStats(Sprint $sprint, Carbon $start, Carbon $end): array
+    public function buildRemakeReasonStats(Sprint $sprint, Carbon $start, Carbon $end, bool $ignoreSprint = false): array
     {
         $order = $this->reasonFlow();
         $flowMap = $this->reasonFlowMap();
 
         $removeLabels = $this->removeLabelNames();
 
-        $rows = DB::table('sprint_remakes')
-            ->where('sprint_id', $sprint->id)
+        $query = DB::table('sprint_remakes')
             ->whereBetween('first_seen_at', [$start, $end])
             ->whereNull('removed_at')
-            ->select('reason_label', 'label_name')
-            ->get();
+            ->select('reason_label', 'label_name');
+        if (!$ignoreSprint) {
+            $query->where('sprint_id', $sprint->id);
+        }
+        $rows = $query->get();
 
         $counts = array_fill_keys($order, 0);
 
@@ -166,13 +179,15 @@ class RemakeStatsRepository
     /**
      * @return array<int, Carbon>
      */
-    private function remakeDatesForSprint(Sprint $sprint, array $removeLabels = []): array
+    private function remakeDatesForSprint(Sprint $sprint, array $removeLabels = [], bool $ignoreSprint = false): array
     {
-        $rows = DB::table('sprint_remakes')
-            ->where('sprint_id', $sprint->id)
+        $query = DB::table('sprint_remakes')
             ->whereNull('removed_at')
-            ->select('first_seen_at', 'label_name')
-            ->get();
+            ->select('first_seen_at', 'label_name');
+        if (!$ignoreSprint) {
+            $query->where('sprint_id', $sprint->id);
+        }
+        $rows = $query->get();
 
         $dates = [];
         foreach ($rows as $row) {
@@ -186,13 +201,15 @@ class RemakeStatsRepository
         return $dates;
     }
 
-    private function requestedCountForDateRange(Sprint $sprint, Carbon $start, Carbon $end, array $removeLabels = []): int
+    private function requestedCountForDateRange(Sprint $sprint, Carbon $start, Carbon $end, array $removeLabels = [], bool $ignoreSprint = false): int
     {
-        $rows = DB::table('sprint_remakes')
-            ->where('sprint_id', $sprint->id)
+        $query = DB::table('sprint_remakes')
             ->whereBetween('first_seen_at', [$start, $end])
-            ->select('label_name')
-            ->get();
+            ->select('label_name');
+        if (!$ignoreSprint) {
+            $query->where('sprint_id', $sprint->id);
+        }
+        $rows = $query->get();
 
         $count = 0;
         foreach ($rows as $row) {
@@ -206,18 +223,20 @@ class RemakeStatsRepository
         return $count;
     }
 
-    private function acceptedCountForDateRange(Sprint $sprint, Carbon $start, Carbon $end, array $reasonLabels = []): int
+    private function acceptedCountForDateRange(Sprint $sprint, Carbon $start, Carbon $end, array $reasonLabels = [], bool $ignoreSprint = false): int
     {
         $allowedKeys = array_keys($this->reasonFlowMap());
         if ($allowedKeys === []) {
             return 0;
         }
 
-        $rows = DB::table('sprint_remakes')
-            ->where('sprint_id', $sprint->id)
+        $query = DB::table('sprint_remakes')
             ->whereBetween('first_seen_at', [$start, $end])
-            ->select('reason_label')
-            ->get();
+            ->select('reason_label');
+        if (!$ignoreSprint) {
+            $query->where('sprint_id', $sprint->id);
+        }
+        $rows = $query->get();
 
         $count = 0;
         foreach ($rows as $row) {

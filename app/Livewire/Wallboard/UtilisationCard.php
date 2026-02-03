@@ -6,6 +6,7 @@ use App\Models\Sprint;
 use App\Services\FourJaw\FourJawService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -16,6 +17,8 @@ class UtilisationCard extends Component
     public Sprint $sprint;
     public int $refreshSeconds = 60;
     public int $refreshTick = 0;
+    public bool $debug = false;
+    public ?string $lastRenderedAt = null;
 
     public function mount(Sprint $sprint, int $refreshSeconds = 60): void
     {
@@ -29,59 +32,76 @@ class UtilisationCard extends Component
         $this->refreshTick++;
     }
 
+    #[On('wallboard-manual-refresh')]
+    public function refreshFromManual(): void
+    {
+        $this->refreshTick++;
+    }
+
     public function render(FourJawService $fourjaw)
     {
-        $utilisationSummary = [
-            'total_percent' => null,
-            'per_machine' => [],
-            'range' => null,
-            'per_machine_range' => null,
-        ];
-
-        try {
-            $machineIds = $fourjaw->getMachineIds();
-            $utilCfg = config('wallboard.utilisation', []);
-            $summaryDays = (int) ($utilCfg['summary_days'] ?? 7);
-            $summaryShifts = (string) ($utilCfg['summary_shifts'] ?? 'on_shift');
-            $debugUtil = (bool) ($utilCfg['debug'] ?? false);
-
-            [$summaryStart, $summaryEnd] = $this->lastWorkingDaysRange($summaryDays);
-            $summary = $fourjaw->getUtilisationSummary($summaryStart, $summaryEnd, $machineIds, $summaryShifts);
-
-            $utilisationSummary = [
-                'total_percent' => Arr::get($summary, 'total_utilisation_percent'),
-                'per_machine' => [],
-                'range' => [
-                    'start' => $summaryStart->toIso8601String(),
-                    'end' => $summaryEnd->toIso8601String(),
-                ],
-                'per_machine_range' => null,
-            ];
-
-            if ($debugUtil) {
-                Log::info('FourJaw utilisation summary debug', [
-                    'sprint_id' => $this->sprint->id,
-                    'summary_range' => $utilisationSummary['range'],
-                    'summary_shifts' => $summaryShifts,
-                    'summary_total_percent' => $utilisationSummary['total_percent'],
-                ]);
-            }
-        } catch (Throwable $e) {
+        $this->lastRenderedAt = now()->toIso8601String();
+        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
+        $utilisationSummary = Cache::remember($this->cacheKey('utilisation'), $ttl, function () use ($fourjaw) {
             $utilisationSummary = [
                 'total_percent' => null,
                 'per_machine' => [],
                 'range' => null,
                 'per_machine_range' => null,
             ];
-            Log::warning('FourJaw utilisation fetch failed', [
-                'sprint_id' => $this->sprint->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+
+            try {
+                $machineIds = $fourjaw->getMachineIds();
+                $utilCfg = config('wallboard.utilisation', []);
+                $summaryDays = (int) ($utilCfg['summary_days'] ?? 7);
+                $summaryShifts = (string) ($utilCfg['summary_shifts'] ?? 'on_shift');
+                $debugUtil = (bool) ($utilCfg['debug'] ?? false);
+
+                [$summaryStart, $summaryEnd] = $this->lastWorkingDaysRange($summaryDays);
+                $summary = $fourjaw->getUtilisationSummary($summaryStart, $summaryEnd, $machineIds, $summaryShifts);
+
+                $utilisationSummary = [
+                    'total_percent' => Arr::get($summary, 'total_utilisation_percent'),
+                    'per_machine' => [],
+                    'range' => [
+                        'start' => $summaryStart->toIso8601String(),
+                        'end' => $summaryEnd->toIso8601String(),
+                    ],
+                    'per_machine_range' => null,
+                ];
+
+                if ($debugUtil) {
+                    Log::info('FourJaw utilisation summary debug', [
+                        'sprint_id' => $this->sprint->id,
+                        'summary_range' => $utilisationSummary['range'],
+                        'summary_shifts' => $summaryShifts,
+                        'summary_total_percent' => $utilisationSummary['total_percent'],
+                    ]);
+                }
+            } catch (Throwable $e) {
+                $utilisationSummary = [
+                    'total_percent' => null,
+                    'per_machine' => [],
+                    'range' => null,
+                    'per_machine_range' => null,
+                ];
+                Log::warning('FourJaw utilisation fetch failed', [
+                    'sprint_id' => $this->sprint->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            return $utilisationSummary;
+        });
 
         return view('livewire.wallboard.utilisation-card', [
             'utilisation' => $utilisationSummary,
         ]);
+    }
+
+    private function cacheKey(string $suffix): string
+    {
+        return "wallboard:{$this->sprint->id}:{$suffix}";
     }
 
     /**

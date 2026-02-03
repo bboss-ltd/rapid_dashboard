@@ -15,8 +15,17 @@ final class BurndownSeriesQuery
     {
         $remakesListId = $sprint->remakes_list_id;
 
-        // Aggregate snapshot cards in one pass
+        // Only keep the last snapshot per day for lighter payloads.
+        $dailyLast = DB::table('sprint_snapshots')
+            ->selectRaw('DATE(taken_at) as day, MAX(taken_at) as taken_at')
+            ->where('sprint_id', $sprint->id)
+            ->whereIn('type', $types)
+            ->groupBy('day');
+
         $query = DB::table('sprint_snapshots as ss')
+            ->joinSub($dailyLast, 'daily', function ($join) {
+                $join->on('ss.taken_at', '=', 'daily.taken_at');
+            })
             ->join('sprint_snapshot_cards as ssc', 'ssc.sprint_snapshot_id', '=', 'ss.id')
             ->where('ss.sprint_id', $sprint->id)
             ->whereIn('ss.type', $types)

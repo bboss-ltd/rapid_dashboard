@@ -104,6 +104,12 @@ return [
         'Dispatch'
     ],
 
+    // Custom fields that should trigger a snapshot when updated via Trello actions.
+    'burndown_trigger_custom_fields' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', env('TRELLO_BURNDOWN_TRIGGER_FIELDS', 'Remake Label,Estimation'))
+    ))),
+
     // Trello card cover options for manual edits in the admin UI.
     'card_cover_colors' => [
         'none',
