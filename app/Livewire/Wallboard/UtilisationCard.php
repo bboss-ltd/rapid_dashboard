@@ -41,8 +41,9 @@ class UtilisationCard extends Component
     public function render(FourJawService $fourjaw)
     {
         $this->lastRenderedAt = now()->toIso8601String();
-        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
-        $utilisationSummary = Cache::remember($this->cacheKey('utilisation'), $ttl, function () use ($fourjaw) {
+        $ttl = (int) config('wallboard.cache_ttl_seconds', 300);
+        $cacheEnabled = (bool) config('wallboard.cache_enabled', true);
+        $resolver = function () use ($fourjaw) {
             $utilisationSummary = [
                 'total_percent' => null,
                 'per_machine' => [],
@@ -92,7 +93,12 @@ class UtilisationCard extends Component
             }
 
             return $utilisationSummary;
-        });
+        };
+        if ($cacheEnabled && $ttl > 0) {
+            $utilisationSummary = Cache::remember($this->cacheKey('utilisation'), max(5, $ttl), $resolver);
+        } else {
+            $utilisationSummary = $resolver();
+        }
 
         return view('livewire.wallboard.utilisation-card', [
             'utilisation' => $utilisationSummary,

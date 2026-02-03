@@ -39,13 +39,19 @@ class BurndownCard extends Component
     public function render(BurndownSeriesQuery $burndownQuery)
     {
         $this->lastRenderedAt = now()->toIso8601String();
-        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
-        $payload = Cache::remember($this->cacheKey('burndown'), $ttl, function () use ($burndownQuery) {
+        $ttl = (int) config('wallboard.cache_ttl_seconds', 300);
+        $cacheEnabled = (bool) config('wallboard.cache_enabled', true);
+        $resolver = function () use ($burndownQuery) {
             return [
                 'series' => $burndownQuery->run($this->sprint, $this->types)->values(),
                 'cfg' => config('wallboard.burndown', []),
             ];
-        });
+        };
+        if ($cacheEnabled && $ttl > 0) {
+            $payload = Cache::remember($this->cacheKey('burndown'), max(5, $ttl), $resolver);
+        } else {
+            $payload = $resolver();
+        }
 
         return view('livewire.wallboard.burndown-card', [
             'series' => $payload['series'],

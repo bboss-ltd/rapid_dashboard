@@ -42,11 +42,17 @@ class RemakeReasonsByLineCard extends Component
     {
         $this->lastRenderedAt = now()->toIso8601String();
         [$reasonStart, $reasonEnd] = $this->resolveReasonRange();
-        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
+        $ttl = (int) config('wallboard.cache_ttl_seconds', 300);
+        $cacheEnabled = (bool) config('wallboard.cache_enabled', true);
         $lineOptions = $this->resolveProductionLineOptions($reader);
-        $payload = Cache::remember($this->cacheKey('reasons-by-line', $reasonStart->toDateString()), $ttl, function () use ($remakeStats, $reasonStart, $reasonEnd) {
+        $resolver = function () use ($remakeStats, $reasonStart, $reasonEnd) {
             return $remakeStats->buildRemakeReasonByLineStats($this->sprint, $reasonStart, $reasonEnd);
-        });
+        };
+        if ($cacheEnabled && $ttl > 0) {
+            $payload = Cache::remember($this->cacheKey('reasons-by-line', $reasonStart->toDateString()), max(5, $ttl), $resolver);
+        } else {
+            $payload = $resolver();
+        }
 
         return view('livewire.wallboard.remake-reasons-by-line-card', [
             'reasonByLine' => $payload,

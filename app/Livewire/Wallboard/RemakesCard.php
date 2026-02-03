@@ -45,9 +45,10 @@ class RemakesCard extends Component
         $this->lastRenderedAt = now()->toIso8601String();
         $remakesForDate = $this->resolveRemakesForDate();
         $ignoreSprint = $remakesForDate !== null;
-        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
+        $ttl = (int) config('wallboard.cache_ttl_seconds', 300);
+        $cacheEnabled = (bool) config('wallboard.cache_enabled', true);
         $cacheVariant = $remakesForDate ? $remakesForDate->toDateString() : 'now';
-        $payload = Cache::remember($this->cacheKey('remakes', $cacheVariant), $ttl, function () use ($burndownQuery, $remakeStats, $remakesForDate, $ignoreSprint) {
+        $resolver = function () use ($burndownQuery, $remakeStats, $remakesForDate, $ignoreSprint) {
             $series = $burndownQuery->run($this->sprint, $this->types);
             $latestPoint = $series->last() ?? [];
             $remakeStatsData = $remakeStats->buildRemakeStats($this->sprint, $this->types, $remakesForDate, $ignoreSprint);
@@ -58,7 +59,12 @@ class RemakesCard extends Component
                 'remakeStats' => $remakeStatsData,
                 'remakeTotal' => $remakeTotal,
             ];
-        });
+        };
+        if ($cacheEnabled && $ttl > 0) {
+            $payload = Cache::remember($this->cacheKey('remakes', $cacheVariant), max(5, $ttl), $resolver);
+        } else {
+            $payload = $resolver();
+        }
 
         return view('livewire.wallboard.remakes-card', [
             'remakeStats' => $payload['remakeStats'],

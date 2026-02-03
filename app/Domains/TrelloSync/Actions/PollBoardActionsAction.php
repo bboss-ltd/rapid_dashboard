@@ -135,6 +135,10 @@ final class PollBoardActionsAction
             $before = $action['data']['listBefore']['id'] ?? null;
             $after = $action['data']['listAfter']['id'] ?? null;
             $doneIds = array_values(array_filter(array_map('trim', (array) ($sprint->done_list_ids ?? []))));
+            $remakesId = $sprint->remakes_list_id;
+            if ($remakesId && ($before === $remakesId || $after === $remakesId)) {
+                return true;
+            }
             if ($doneIds === []) {
                 return false;
             }

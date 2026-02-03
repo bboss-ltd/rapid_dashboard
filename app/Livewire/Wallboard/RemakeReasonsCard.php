@@ -39,12 +39,18 @@ class RemakeReasonsCard extends Component
     public function render(RemakeStatsRepository $remakeStats)
     {
         $this->lastRenderedAt = now()->toIso8601String();
-        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
+        $ttl = (int) config('wallboard.cache_ttl_seconds', 300);
+        $cacheEnabled = (bool) config('wallboard.cache_enabled', true);
         [$reasonStart, $reasonEnd] = $this->resolveReasonRange();
-        $remakeReasonStats = Cache::remember($this->cacheKey('reasons', $reasonStart->toDateString()), $ttl, function () use ($remakeStats, $reasonStart, $reasonEnd) {
+        $resolver = function () use ($remakeStats, $reasonStart, $reasonEnd) {
             $ignoreSprint = $this->remakesFor !== null;
             return $remakeStats->buildRemakeReasonStats($this->sprint, $reasonStart, $reasonEnd, $ignoreSprint);
-        });
+        };
+        if ($cacheEnabled && $ttl > 0) {
+            $remakeReasonStats = Cache::remember($this->cacheKey('reasons', $reasonStart->toDateString()), max(5, $ttl), $resolver);
+        } else {
+            $remakeReasonStats = $resolver();
+        }
 
         return view('livewire.wallboard.remake-reasons-card', [
             'remakeReasonStats' => $remakeReasonStats,

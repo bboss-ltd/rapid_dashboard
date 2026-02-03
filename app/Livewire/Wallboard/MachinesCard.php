@@ -41,8 +41,9 @@ class MachinesCard extends Component
     public function render(FourJawService $fourjaw)
     {
         $this->lastRenderedAt = now()->toIso8601String();
-        $ttl = max(5, (int) config('wallboard.cache_ttl_seconds', 300));
-        $payload = Cache::remember($this->cacheKey('machines'), $ttl, function () use ($fourjaw) {
+        $ttl = (int) config('wallboard.cache_ttl_seconds', 300);
+        $cacheEnabled = (bool) config('wallboard.cache_enabled', true);
+        $resolver = function () use ($fourjaw) {
             $machines = [];
             $utilisationSummary = [
                 'total_percent' => null,
@@ -131,7 +132,12 @@ class MachinesCard extends Component
                 'machines' => $machines,
                 'utilisation' => $utilisationSummary,
             ];
-        });
+        };
+        if ($cacheEnabled && $ttl > 0) {
+            $payload = Cache::remember($this->cacheKey('machines'), max(5, $ttl), $resolver);
+        } else {
+            $payload = $resolver();
+        }
 
         return view('livewire.wallboard.machines-card', [
             'machines' => $payload['machines'],
