@@ -4,7 +4,6 @@ namespace App\Services\FourJaw;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Arr;
-use InvalidArgumentException;
 use Illuminate\Support\Facades\Log;
 
 class FourJawService
@@ -63,10 +62,13 @@ class FourJawService
             return [];
         }
 
-        $response = $this->fourjaw->get(
+        $machineIds = array_values($machineIds);
+
+        $response = $this->fourjaw->post(
             config('fourjaw.endpoints.current_status'),
             [
-                'page_size' => (int) config('fourjaw.status_page_size', 200),
+                'asset_ids' => $machineIds,
+                'page_size' => 0,
             ]
         );
 
@@ -76,13 +78,12 @@ class FourJawService
         }
 
         $map = $this->getMachineMap();
-        $machineIds = array_values($machineIds);
         $allowed = array_flip($machineIds);
 
         $resultsById = [];
 
         foreach ($items as $item) {
-            $id = Arr::get($item, 'id');
+            $id = Arr::get($item, 'machine_id');
             if (!is_string($id) || !isset($allowed[$id])) {
                 continue;
             }
@@ -107,7 +108,7 @@ class FourJawService
 
             $resultsById[$id] = [
                 'id' => $id,
-                'name' => Arr::get($item, 'display_name')
+                'name' => Arr::get($item, 'machine_name')
                     ?? Arr::get($map, "{$id}.display_name"),
                 'status_classification' => $classification,
                 'status' => $this->normalizeStatus($classification, $downtimeReason),
@@ -151,15 +152,14 @@ class FourJawService
             return [];
         }
 
-        $assetIds = implode(',', $machineIds);
-
-        return $this->fourjaw->get(
+        return $this->fourjaw->post(
             config('fourjaw.endpoints.utilisation_summary'),
             [
                 'start_timestamp' => $start->toIso8601String(),
                 'end_timestamp' => $end->toIso8601String(),
-                'asset_ids' => $assetIds,
+                'asset_ids' => array_values($machineIds),
                 'shifts' => $shifts,
+                'exact_range' => true,
             ]
         );
     }
@@ -183,50 +183,4 @@ class FourJawService
         return 'unknown';
     }
 
-    /**
-     * @param string|string[] $machineIds
-     *
-     * @return array<string, mixed>
-     */
-    public function getStatusPeriods(
-        string|array $machineIds = [],
-        ?string $startFrom = null,
-        ?string $endAt = null
-    ): array {
-        @trigger_error('FourJawService::getStatusPeriods is deprecated.', E_USER_DEPRECATED);
-
-        $now = now();
-
-        $end = $endAt !== null
-            ? Carbon::parse($endAt)
-            : $now->copy();
-
-        $start = $startFrom !== null
-            ? Carbon::parse($startFrom)
-            : $end->copy()->subMinute();
-
-        $machineIds = is_string($machineIds)
-            ? [$machineIds]
-            : array_values($machineIds);
-
-        if ($machineIds === []) {
-            $machineIds = $this->getMachineIds();
-        }
-
-        if ($machineIds === []) {
-            throw new InvalidArgumentException(
-                'No machine IDs resolved. The radar is empty.'
-            );
-        }
-
-        return $this->fourjaw->get('/status-periods', [
-            'query' => [
-                'asset_ids'       => $machineIds,
-                'start_timestamp' => $start->toIso8601String(),
-                'end_timestamp'   => $end->toIso8601String(),
-                'order'           => 'descending',
-                'page_size'       => 1,
-            ],
-        ]);
-    }
 }

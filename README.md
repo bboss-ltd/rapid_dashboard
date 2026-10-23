@@ -162,19 +162,14 @@ Associated env vars:
 - `APP_RELEASED_AT` (optional ISO8601)
 - `APP_REVISION` (optional)
 - `APP_RELEASED_AT` (optional ISO8601)
-- `FOURJAW_BASE_URL`
-- `FOURJAW_USER_EMAIL`
-- `FOURJAW_USER_PASSWORD`
-- `FOURJAW_REMEMBER_ME`
-- `FOURJAW_LOGIN_PATH` (optional)
-- `FOURJAW_CHECK_AUTH_PATH` (optional)
+- `FOURJAW_BASE_URL` (optional, default `https://rapidaccessltd.fourjaw.app/api/v1`)
+- `FOURJAW_API_KEY`
 - `FOURJAW_CURRENT_STATUS_PATH` (optional)
 - `FOURJAW_UTILISATION_SUMMARY_PATH` (optional)
-- `FOURJAW_AUTH_CACHE_TTL` (optional, minutes)
-- `FOURJAW_STATUS_PAGE_SIZE` (optional)
 - `WALLBOARD_UTILISATION_DAYS` (optional, default 7)
 - `WALLBOARD_UTILISATION_SHIFTS` (optional, default on_shift)
 - `WALLBOARD_UTILISATION_MACHINE_SHIFTS` (optional, default on_shift)
+- `WALLBOARD_UTILISATION_TIMEZONE` (optional, default Europe/London; day boundaries for utilisation ranges)
 - `WALLBOARD_MACHINES_SHOW_UTILISATION` (optional, default true)
 
 Legacy env vars like `TRELLO_CF_SPRINT_STATUS` are no longer used; prefer the name-based registry field envs above.
@@ -195,7 +190,7 @@ If your Trello reason labels are prefixed with `RM `, the wallboard strips that 
 
 ## FourJaw machines
 
-The Machines card pulls live status from FourJaw. Configure credentials in `.env` using the `FOURJAW_*` vars above.
+The Machines card pulls live status and utilisation from the FourJaw Analytics API (v1). Generate an API key in the FourJaw web app (account menu → Personal settings → API keys) and set it as `FOURJAW_API_KEY`. The key sees exactly what its user sees, so use a dedicated account; each key is limited to 100 requests per minute.
 
 Machine IDs and display names live in `config/fourjaw.php`. Only those IDs are rendered on the wallboard.
 Status colors and idle thresholds are controlled in `config/wallboard.php` under `machines`.

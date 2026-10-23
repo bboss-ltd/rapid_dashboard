@@ -57,11 +57,12 @@ final class BuildWallboardViewDataAction
             $summaryShifts = (string) ($utilCfg['summary_shifts'] ?? 'on_shift');
             $machineShifts = (string) ($utilCfg['per_machine_shifts'] ?? 'on_shift');
             $debugUtil = (bool) ($utilCfg['debug'] ?? false);
+            $timezone = (string) ($utilCfg['timezone'] ?? 'Europe/London');
 
-            [$summaryStart, $summaryEnd] = $this->lastWorkingDaysRange($summaryDays);
+            [$summaryStart, $summaryEnd] = $this->lastWorkingDaysRange($summaryDays, $timezone);
             $summary = $this->fourjaw->getUtilisationSummary($summaryStart, $summaryEnd, $machineIds, $summaryShifts);
 
-            $assetAverages = Arr::get($summary, 'asset_averages', []);
+            $assetAverages = Arr::get($summary, 'items', []);
             $perMachine = [];
             if (is_array($assetAverages)) {
                 foreach ($assetAverages as $row) {
@@ -69,15 +70,15 @@ final class BuildWallboardViewDataAction
                     if (!is_string($assetId) || $assetId === '') {
                         continue;
                     }
-                    $perMachine[$assetId] = Arr::get($row, 'utilisation_percent');
+                    $perMachine[$assetId] = Arr::get($row, 'uptime_percentage');
                 }
             }
 
-            $dayStart = now()->startOfDay();
-            $dayEnd = now();
+            $dayStart = now($timezone)->startOfDay();
+            $dayEnd = now($timezone);
             $daySummary = $this->fourjaw->getUtilisationSummary($dayStart, $dayEnd, $machineIds, $machineShifts);
 
-            $dayAssetAverages = Arr::get($daySummary, 'asset_averages', []);
+            $dayAssetAverages = Arr::get($daySummary, 'items', []);
             $dayPerMachine = [];
             if (is_array($dayAssetAverages)) {
                 foreach ($dayAssetAverages as $row) {
@@ -85,12 +86,12 @@ final class BuildWallboardViewDataAction
                     if (!is_string($assetId) || $assetId === '') {
                         continue;
                     }
-                    $dayPerMachine[$assetId] = Arr::get($row, 'utilisation_percent');
+                    $dayPerMachine[$assetId] = Arr::get($row, 'uptime_percentage');
                 }
             }
 
             $utilisationSummary = [
-                'total_percent' => Arr::get($summary, 'total_utilisation_percent'),
+                'total_percent' => Arr::get($summary, 'meta.total_uptime_percentage'),
                 'per_machine' => $dayPerMachine,
                 'range' => [
                     'start' => $summaryStart->toIso8601String(),
@@ -144,7 +145,7 @@ final class BuildWallboardViewDataAction
     /**
      * @return array{0: Carbon, 1: Carbon}
      */
-    private function lastWorkingDaysRange(int $days): array
+    private function lastWorkingDaysRange(int $days, string $timezone): array
     {
         if ($days <= 0) {
             $days = 7;
@@ -152,7 +153,7 @@ final class BuildWallboardViewDataAction
         $workingDays = config('wallboard.burndown.working_days', [1, 2, 3, 4, 5]);
         $workingDays = array_map('intval', is_array($workingDays) ? $workingDays : []);
 
-        $cursor = now()->subDay()->startOfDay();
+        $cursor = now($timezone)->subDay()->startOfDay();
         while (!in_array($cursor->isoWeekday(), $workingDays, true)) {
             $cursor->subDay();
         }
