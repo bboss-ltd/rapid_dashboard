@@ -2,13 +2,9 @@
 
 return [
     'endpoints' => [
-        'login' => env('FOURJAW_LOGIN_PATH', '/login'),
-        'check_auth' => env('FOURJAW_CHECK_AUTH_PATH', '/check-auth-token'),
-        'current_status' => env('FOURJAW_CURRENT_STATUS_PATH', '/analytics/machines/status/current'),
-        'utilisation_summary' => env('FOURJAW_UTILISATION_SUMMARY_PATH', '/analytics/assets/utilisation/fixed-summary'),
+        'current_status' => env('FOURJAW_CURRENT_STATUS_PATH', '/status-periods/current'),
+        'utilisation_summary' => env('FOURJAW_UTILISATION_SUMMARY_PATH', '/uptime/absolute/by-asset'),
     ],
-    'auth_cache_ttl_minutes' => (int) env('FOURJAW_AUTH_CACHE_TTL', 480),
-    'status_page_size' => (int) env('FOURJAW_STATUS_PAGE_SIZE', 200),
     'machines' => [
         // Secton
         '65363aeab508da286b7e30e9' => [

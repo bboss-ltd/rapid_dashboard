@@ -63,6 +63,8 @@ return [
         'summary_shifts' => env('WALLBOARD_UTILISATION_SHIFTS', 'on_shift'),
         'per_machine_shifts' => env('WALLBOARD_UTILISATION_MACHINE_SHIFTS', 'on_shift'),
         'debug' => env('WALLBOARD_UTILISATION_DEBUG', false),
+        // Day boundaries for utilisation ranges; match the timezone FourJaw reports shifts in.
+        'timezone' => env('WALLBOARD_UTILISATION_TIMEZONE', 'Europe/London'),
     ],
 
 ];
